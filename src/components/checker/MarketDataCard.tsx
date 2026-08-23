@@ -31,7 +31,7 @@ type Props = {
   tick: number;
 };
 
-function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
+function Row({ label, value, tone }: { label: string; value: string; tone?: string | undefined }) {
   return (
     <div className="flex items-center justify-between border-b border-border/60 py-2.5 last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
