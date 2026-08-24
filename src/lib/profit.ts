@@ -52,6 +52,20 @@ export function formatPercent(value: number): string {
   return `${sign}${Math.abs(value).toFixed(1)}%`;
 }
 
+/** Formats a USD amount as INR using a live USD->INR rate. Returns "—" without a rate. */
+export function formatInr(
+  usdValue: number,
+  usdInr: number | null,
+  opts?: { sign?: boolean },
+): string {
+  if (!usdInr || !Number.isFinite(usdValue)) return "—";
+  const value = usdValue * usdInr;
+  const sign = opts?.sign && value > 0 ? "+" : value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  return `${sign}₹${abs.toLocaleString("en-IN", { maximumFractionDigits: abs < 100 ? 2 : 0 })}`;
+}
+
+
 export function shortenAddress(ca: string, size = 4): string {
   if (ca.length <= size * 2 + 3) return ca;
   return `${ca.slice(0, size)}...${ca.slice(-size)}`;
