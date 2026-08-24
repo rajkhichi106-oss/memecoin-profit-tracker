@@ -33,13 +33,17 @@ type Props = {
   buyMcInput: string;
   setBuyMcInput: (v: string) => void;
   buyMarketCap: number | null;
+  customTarget: string;
+  setCustomTarget: (v: string) => void;
   solInvested: number | null;
   solPrice: number | null;
+  usdInr: number | null;
   loading: boolean;
   error: string | null;
   onCheck: () => void;
   onPaste: () => void;
 };
+
 
 export function CheckForm({
   ca,
