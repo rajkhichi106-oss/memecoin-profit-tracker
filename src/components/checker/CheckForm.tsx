@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatCompactUsd, formatSol, isValidSolanaAddress } from "@/lib/profit";
+import { formatCompactUsd, formatInr, formatSol, isValidSolanaAddress } from "@/lib/profit";
 import type { AmountUnit } from "@/hooks/useProfitChecker";
 
 const QUICK_MCS: { label: string; value: string }[] = [
