@@ -38,6 +38,8 @@ export function useProfitChecker() {
 
   const [token, setToken] = useState<TokenData | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(null);
+  const [usdInr, setUsdInr] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
