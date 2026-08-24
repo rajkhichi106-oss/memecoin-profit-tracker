@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { getSolPrice, getTokenData, type TokenData } from "@/lib/market-data.functions";
+import { getSolPrice, getTokenData } from "@/lib/market-data.functions";
+import type { TokenData } from "@/lib/market-data.types";
+
 import {
   calculateProfit,
   calculateTargetValue,
@@ -36,6 +38,8 @@ export function useProfitChecker() {
 
   const [token, setToken] = useState<TokenData | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(null);
+  const [usdInr, setUsdInr] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +58,11 @@ export function useProfitChecker() {
     let cancelled = false;
     void (async () => {
       const res = await fetchSol({});
-      if (!cancelled && res.ok) setSolPrice(res.priceUsd);
+      if (!cancelled && res.ok) {
+        setSolPrice(res.priceUsd);
+        setUsdInr(res.usdInr);
+      }
+
     })();
     return () => {
       cancelled = true;
@@ -143,6 +151,7 @@ export function useProfitChecker() {
           setError(solRes.error);
           return;
         }
+        setUsdInr(solRes.usdInr);
         if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
           setToken(tokenRes.token);
           setSolPrice(solRes.priceUsd);
@@ -154,6 +163,7 @@ export function useProfitChecker() {
         setSolPrice(solRes.priceUsd);
         setLastUpdated(Date.now());
         lastFetch.current = { ca: address, at: Date.now() };
+
       } catch {
         setError("Market data service is unavailable. Try again shortly.");
       } finally {
@@ -215,6 +225,26 @@ export function useProfitChecker() {
     }
   }, []);
 
+  // Populate the calculator from a tracked wallet BUY, then auto-check it.
+  const [pendingCheck, setPendingCheck] = useState(false);
+  const applyTrackedPosition = useCallback(
+    (p: { ca: string; solAmount: number; buyMarketCap: number | null }) => {
+      setCa(p.ca);
+      setAmountUnit("SOL");
+      setAmount(p.solAmount.toFixed(4));
+      if (p.buyMarketCap) setBuyMcInput(String(Math.round(p.buyMarketCap)));
+      setPendingCheck(true);
+      toast.success("Position loaded into the calculator");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!pendingCheck || !amountValue || !buyMarketCap || !isValidSolanaAddress(ca)) return;
+    setPendingCheck(false);
+    void runFetch("check");
+  }, [pendingCheck, amountValue, buyMarketCap, ca, runFetch]);
+
   return {
     ca,
     setCa,
@@ -228,6 +258,9 @@ export function useProfitChecker() {
     setCustomTarget,
     token,
     solPrice,
+    usdInr,
+    applyTrackedPosition,
+
     loading,
     refreshing,
     error,
