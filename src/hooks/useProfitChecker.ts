@@ -58,7 +58,11 @@ export function useProfitChecker() {
     let cancelled = false;
     void (async () => {
       const res = await fetchSol({});
-      if (!cancelled && res.ok) setSolPrice(res.priceUsd);
+      if (!cancelled && res.ok) {
+        setSolPrice(res.priceUsd);
+        setUsdInr(res.usdInr);
+      }
+
     })();
     return () => {
       cancelled = true;
