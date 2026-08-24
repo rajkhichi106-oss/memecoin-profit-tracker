@@ -136,7 +136,7 @@ export function CheckForm({
               {amountUnit === "USD" && solInvested
                 ? `≈ ${formatSol(solInvested)} at current SOL price`
                 : solInvested
-                  ? `≈ $${(solInvested * (solPrice ?? 0)).toFixed(2)} invested`
+                  ? `≈ ${formatInr(solInvested * (solPrice ?? 0), usdInr)} · $${(solInvested * (solPrice ?? 0)).toFixed(2)}`
                   : "Enter the amount you put in"}
             </p>
           </div>
@@ -154,7 +154,22 @@ export function CheckForm({
               {buyMarketCap ? `= ${formatCompactUsd(buyMarketCap)}` : "Accepts 53K, 52.7K, 1.2M"}
             </p>
           </div>
+
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="targetmc">Target Market Cap</Label>
+            <Input
+              id="targetmc"
+              value={customTarget}
+              onChange={(e) => setCustomTarget(e.target.value)}
+              placeholder="$750K"
+              className="num h-12"
+            />
+            <p className="num text-xs text-muted-foreground">
+              Optional — see your estimated value at this MC in the live panel.
+            </p>
+          </div>
         </div>
+
 
         <div className="flex flex-wrap gap-2">
           {QUICK_MCS.map((q) => (
