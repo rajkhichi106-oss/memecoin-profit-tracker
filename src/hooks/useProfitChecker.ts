@@ -151,6 +151,7 @@ export function useProfitChecker() {
           setError(solRes.error);
           return;
         }
+        setUsdInr(solRes.usdInr);
         if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
           setToken(tokenRes.token);
           setSolPrice(solRes.priceUsd);
@@ -162,6 +163,7 @@ export function useProfitChecker() {
         setSolPrice(solRes.priceUsd);
         setLastUpdated(Date.now());
         lastFetch.current = { ca: address, at: Date.now() };
+
       } catch {
         setError("Market data service is unavailable. Try again shortly.");
       } finally {
