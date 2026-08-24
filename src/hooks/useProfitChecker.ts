@@ -225,6 +225,26 @@ export function useProfitChecker() {
     }
   }, []);
 
+  // Populate the calculator from a tracked wallet BUY, then auto-check it.
+  const [pendingCheck, setPendingCheck] = useState(false);
+  const applyTrackedPosition = useCallback(
+    (p: { ca: string; solAmount: number; buyMarketCap: number | null }) => {
+      setCa(p.ca);
+      setAmountUnit("SOL");
+      setAmount(p.solAmount.toFixed(4));
+      if (p.buyMarketCap) setBuyMcInput(String(Math.round(p.buyMarketCap)));
+      setPendingCheck(true);
+      toast.success("Position loaded into the calculator");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!pendingCheck || !amountValue || !buyMarketCap || !isValidSolanaAddress(ca)) return;
+    setPendingCheck(false);
+    void runFetch("check");
+  }, [pendingCheck, amountValue, buyMarketCap, ca, runFetch]);
+
   return {
     ca,
     setCa,
@@ -238,6 +258,9 @@ export function useProfitChecker() {
     setCustomTarget,
     token,
     solPrice,
+    usdInr,
+    applyTrackedPosition,
+
     loading,
     refreshing,
     error,
