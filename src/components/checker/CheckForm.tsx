@@ -55,8 +55,12 @@ export function CheckForm({
   buyMcInput,
   setBuyMcInput,
   buyMarketCap,
+  customTarget,
+  setCustomTarget,
   solInvested,
   solPrice,
+  usdInr,
+
   loading,
   error,
   onCheck,
