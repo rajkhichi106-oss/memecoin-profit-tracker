@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { getSolPrice, getTokenData, type TokenData } from "@/lib/market-data.functions";
+import { getSolPrice, getTokenData } from "@/lib/market-data.functions";
+import type { TokenData } from "@/lib/market-data.types";
+
 import {
   calculateProfit,
   calculateTargetValue,
