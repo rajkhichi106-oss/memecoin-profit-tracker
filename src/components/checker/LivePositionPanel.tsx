@@ -46,8 +46,9 @@ function Line({
 }: {
   label: string;
   value: string;
-  sub?: string;
-  tone?: "profit" | "loss";
+  sub?: string | undefined;
+  tone?: "profit" | "loss" | undefined;
+
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-border/60 py-2.5 last:border-0">
