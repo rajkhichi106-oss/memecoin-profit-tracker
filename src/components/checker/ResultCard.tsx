@@ -132,8 +132,9 @@ export function ResultCard({
           <Stat
             label="Position in SOL"
             value={formatSol(result.currentSol)}
-            sub={`from ${formatSol(result.profitSol < 0 ? result.currentSol - result.profitSol : result.currentSol - result.profitSol)}`}
+            sub={`entry ${formatSol(result.currentSol - result.profitSol)}`}
           />
+
           <Stat label="ROI" value={formatPercent(result.roiPercent)} tone={tone} />
           <Stat label="Multiplier" value={`${result.multiplier.toFixed(2)}×`} />
           <Stat
