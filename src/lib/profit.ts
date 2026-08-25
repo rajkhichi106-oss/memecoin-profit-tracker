@@ -130,3 +130,13 @@ export function calculateTargetValue(
 }
 
 export const DEFAULT_TARGETS = [100_000, 250_000, 500_000, 1_000_000, 5_000_000, 10_000_000];
+
+export function formatInr(value: number, opts?: { sign?: boolean }): string {
+  const sign = opts?.sign && value > 0 ? "+" : value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  const digits = abs >= 100 ? 0 : 2;
+  return `${sign}₹${abs.toLocaleString("en-IN", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}`;
+}
