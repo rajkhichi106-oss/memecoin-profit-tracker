@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { getSolPrice, getTokenData, type TokenData } from "@/lib/market-data.functions";
+import {
+  getFxRate,
+  getSolPrice,
+  getTokenData,
+  type TokenData,
+  type WalletTrade,
+} from "@/lib/market-data.functions";
 import {
   calculateProfit,
   calculateTargetValue,
@@ -12,21 +18,17 @@ import {
   type ProfitResult,
   type TargetRow,
 } from "@/lib/profit";
-import {
-  clearHistory,
-  loadHistory,
-  saveHistoryEntry,
-  type HistoryEntry,
-} from "@/lib/history";
+import { clearHistory, loadHistory, saveHistoryEntry, type HistoryEntry } from "@/lib/history";
 
 export type AmountUnit = "SOL" | "USD";
 export type RefreshOption = 0 | 30 | 60 | 300;
 
-const CACHE_TTL = 15_000;
+const CACHE_TTL = 10_000;
 
 export function useProfitChecker() {
   const fetchToken = useServerFn(getTokenData);
   const fetchSol = useServerFn(getSolPrice);
+  const fetchFx = useServerFn(getFxRate);
 
   const [ca, setCa] = useState("");
   const [amount, setAmount] = useState("");
@@ -36,11 +38,12 @@ export function useProfitChecker() {
 
   const [token, setToken] = useState<TokenData | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(null);
+  const [usdInr, setUsdInr] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
-  const [refreshInterval, setRefreshInterval] = useState<RefreshOption>(0);
+  const [refreshInterval, setRefreshInterval] = useState<RefreshOption>(30);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const lastFetch = useRef<{ ca: string; at: number }>({ ca: "", at: 0 });
@@ -49,17 +52,19 @@ export function useProfitChecker() {
     setHistory(loadHistory());
   }, []);
 
-  // Fetch SOL price early so USD -> SOL conversion works before checking.
+  // Pull SOL price + USD/INR early so conversions work before the first check.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const res = await fetchSol({});
-      if (!cancelled && res.ok) setSolPrice(res.priceUsd);
+      const [sol, fx] = await Promise.all([fetchSol({}), fetchFx({})]);
+      if (cancelled) return;
+      if (sol.ok) setSolPrice(sol.priceUsd);
+      if (fx.ok) setUsdInr(fx.usdInr);
     })();
     return () => {
       cancelled = true;
     };
-  }, [fetchSol]);
+  }, [fetchSol, fetchFx]);
 
   const buyMarketCap = useMemo(() => parseCompactNumber(buyMcInput), [buyMcInput]);
   const amountValue = useMemo(() => {
@@ -74,9 +79,7 @@ export function useProfitChecker() {
     return amountValue / solPrice;
   }, [amountValue, amountUnit, solPrice]);
 
-  const currentMarketCap = token
-    ? (token.marketCap ?? token.fdv ?? null)
-    : null;
+  const currentMarketCap = token ? (token.marketCap ?? token.fdv ?? null) : null;
 
   const result: ProfitResult | null = useMemo(() => {
     if (!solInvested || !buyMarketCap || !currentMarketCap || !solPrice) return null;
@@ -117,22 +120,20 @@ export function useProfitChecker() {
           return;
         }
         const now = Date.now();
-        if (
-          token &&
-          lastFetch.current.ca === address &&
-          now - lastFetch.current.at < CACHE_TTL
-        ) {
+        if (token && lastFetch.current.ca === address && now - lastFetch.current.at < CACHE_TTL) {
           setError(null);
           return;
         }
       }
 
-      mode === "check" ? setLoading(true) : setRefreshing(true);
+      if (mode === "check") setLoading(true);
+      else setRefreshing(true);
       setError(null);
       try {
-        const [tokenRes, solRes] = await Promise.all([
+        const [tokenRes, solRes, fxRes] = await Promise.all([
           fetchToken({ data: { ca: address } }),
           fetchSol({}),
+          fetchFx({}),
         ]);
 
         if (!tokenRes.ok) {
@@ -143,6 +144,8 @@ export function useProfitChecker() {
           setError(solRes.error);
           return;
         }
+        if (fxRes.ok) setUsdInr(fxRes.usdInr);
+
         if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
           setToken(tokenRes.token);
           setSolPrice(solRes.priceUsd);
@@ -161,7 +164,7 @@ export function useProfitChecker() {
         setRefreshing(false);
       }
     },
-    [ca, amountValue, buyMarketCap, token, fetchToken, fetchSol],
+    [ca, amountValue, buyMarketCap, token, fetchToken, fetchSol, fetchFx],
   );
 
   const check = useCallback(() => void runFetch("check"), [runFetch]);
@@ -190,7 +193,7 @@ export function useProfitChecker() {
     );
   }, [token, result, solInvested, buyMarketCap, currentMarketCap, lastUpdated]);
 
-  // Auto refresh
+  // Auto refresh of the live position.
   useEffect(() => {
     if (!refreshInterval || !token) return;
     const id = window.setInterval(() => void runFetch("refresh"), refreshInterval * 1000);
@@ -215,6 +218,33 @@ export function useProfitChecker() {
     }
   }, []);
 
+  /** Populate the calculator from a detected wallet BUY. */
+  const trackTrade = useCallback((trade: WalletTrade) => {
+    setCa(trade.mint);
+    setAmountUnit("SOL");
+    setAmount(trade.solAmount.toFixed(4));
+    if (trade.marketCap && trade.currentPriceUsd && trade.entryPriceUsd) {
+      const entryMc = trade.marketCap * (trade.entryPriceUsd / trade.currentPriceUsd);
+      setBuyMcInput(Math.round(entryMc).toString());
+    } else if (trade.marketCap) {
+      setBuyMcInput(Math.round(trade.marketCap).toString());
+    }
+    toast.success(`Tracking ${trade.symbol} position`);
+    lastFetch.current = { ca: "", at: 0 };
+  }, []);
+
+  // Auto-check once trackTrade has filled every field.
+  const pendingTrack = useRef(false);
+  const markPendingTrack = useCallback(() => {
+    pendingTrack.current = true;
+  }, []);
+  useEffect(() => {
+    if (!pendingTrack.current) return;
+    if (!isValidSolanaAddress(ca) || !amountValue || !buyMarketCap) return;
+    pendingTrack.current = false;
+    void runFetch("check");
+  }, [ca, amountValue, buyMarketCap, runFetch]);
+
   return {
     ca,
     setCa,
@@ -228,6 +258,7 @@ export function useProfitChecker() {
     setCustomTarget,
     token,
     solPrice,
+    usdInr,
     loading,
     refreshing,
     error,
@@ -246,5 +277,9 @@ export function useProfitChecker() {
     refreshNow,
     pasteFromClipboard,
     copy,
+    trackTrade: (t: WalletTrade) => {
+      trackTrade(t);
+      markPendingTrack();
+    },
   };
 }
