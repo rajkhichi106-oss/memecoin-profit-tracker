@@ -4,19 +4,17 @@ import { Rocket, Target, TrendingUp, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CheckForm } from "@/components/checker/CheckForm";
-import { LivePositionPanel } from "@/components/checker/LivePositionPanel";
 import { MarketDataCard } from "@/components/checker/MarketDataCard";
 import { PotentialChart } from "@/components/checker/PotentialChart";
 import { RecentChecks } from "@/components/checker/RecentChecks";
 import { ResultCard } from "@/components/checker/ResultCard";
 import { TargetSection } from "@/components/checker/TargetSection";
 import { TokenAnalysis } from "@/components/checker/TokenAnalysis";
-import { WalletTracker } from "@/components/checker/WalletTracker";
 import { useProfitChecker } from "@/hooks/useProfitChecker";
 
-const TITLE = "Solana Memecoin Profit Checker — Live P/L in INR";
+const TITLE = "Solana Memecoin Profit Checker — Live P/L & Target Calculator";
 const DESCRIPTION =
-  "Paste a Solana contract address, enter your SOL investment and buy market cap, and track live profit in INR plus your wallet's latest trades.";
+  "Paste a Solana contract address, enter your SOL investment and buy market cap, and see your estimated profit, ROI and value at higher market caps.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -33,9 +31,21 @@ export const Route = createFileRoute("/")({
 });
 
 const BENEFITS = [
-  { icon: Zap, title: "Live Data", body: "Current token market data, SOL/USD and USD/INR rates." },
-  { icon: TrendingUp, title: "Instant Profit", body: "Estimated position value and ROI in INR." },
-  { icon: Target, title: "Target Calculator", body: "Value at higher market caps, updated live." },
+  {
+    icon: Zap,
+    title: "Live Data",
+    body: "Automatically fetch current token market data from DexScreener.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Instant Profit",
+    body: "Calculate your estimated position value and ROI in seconds.",
+  },
+  {
+    icon: Target,
+    title: "Target Calculator",
+    body: "See what your investment could be worth at different market caps.",
+  },
 ];
 
 function Index() {
@@ -53,80 +63,51 @@ function Index() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-20 pt-8 sm:px-6 sm:pt-12">
+    <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6 sm:pt-16">
       <header className="text-center">
         <span className="num inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1 text-xs text-muted-foreground">
-          Solana • Live market data • INR profit • No login
+          Solana • Live market data • No login
         </span>
-        <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-4xl">
+        <h1 className="mt-5 text-3xl font-bold leading-tight sm:text-5xl">
           Know Your Memecoin <span className="text-gradient">Profit Instantly.</span>
         </h1>
-        <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
+        <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground sm:text-base">
           Paste a Solana CA. Enter your investment. See your estimated profit in seconds.
         </p>
-        <Button size="lg" className="mt-5 px-6" onClick={scrollToChecker}>
+        <Button size="lg" className="mt-6 h-13 px-6 text-base" onClick={scrollToChecker}>
           <Rocket className="size-5" /> Check My Profit
         </Button>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-3">
           {BENEFITS.map((b) => (
-            <div key={b.title} className="glass rounded-2xl p-3.5 text-left">
-              <b.icon className="size-4 text-brand-2" />
-              <p className="mt-1.5 text-sm font-semibold">{b.title}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{b.body}</p>
+            <div key={b.title} className="glass rounded-2xl p-4 text-left">
+              <b.icon className="size-5 text-brand-2" />
+              <p className="mt-2 text-sm font-semibold">{b.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{b.body}</p>
             </div>
           ))}
         </div>
       </header>
 
-      {/* Trade inputs (left) + sticky live position (right) */}
-      <div className="mt-8 grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div className="space-y-5">
-          <CheckForm
-            ca={c.ca}
-            setCa={c.setCa}
-            amount={c.amount}
-            setAmount={c.setAmount}
-            amountUnit={c.amountUnit}
-            setAmountUnit={c.setAmountUnit}
-            buyMcInput={c.buyMcInput}
-            setBuyMcInput={c.setBuyMcInput}
-            buyMarketCap={c.buyMarketCap}
-            customTarget={c.customTarget}
-            setCustomTarget={c.setCustomTarget}
-            solInvested={c.solInvested}
-            solPrice={c.solPrice}
-            usdInr={c.usdInr}
-            loading={c.loading}
-            error={c.error}
-            onCheck={c.check}
-            onPaste={() => void c.pasteFromClipboard()}
-          />
-
-          <WalletTracker
-            usdInr={c.usdInr}
-            onTrackPosition={c.applyTrackedPosition}
-            tick={tick}
-          />
-        </div>
-
-        <LivePositionPanel
-          token={c.token}
-          result={c.result}
-          customTargetRow={c.customTargetRow}
-          currentMarketCap={c.currentMarketCap}
+      <div className="mt-10 space-y-5">
+        <CheckForm
+          ca={c.ca}
+          setCa={c.setCa}
+          amount={c.amount}
+          setAmount={c.setAmount}
+          amountUnit={c.amountUnit}
+          setAmountUnit={c.setAmountUnit}
+          buyMcInput={c.buyMcInput}
+          setBuyMcInput={c.setBuyMcInput}
           buyMarketCap={c.buyMarketCap}
+          solInvested={c.solInvested}
           solPrice={c.solPrice}
-          usdInr={c.usdInr}
-          lastUpdated={c.lastUpdated}
-          refreshing={c.refreshing}
-          refreshInterval={c.refreshInterval}
-          setRefreshInterval={c.setRefreshInterval}
-          onRefresh={c.refreshNow}
-          tick={tick}
+          loading={c.loading}
+          error={c.error}
+          onCheck={c.check}
+          onPaste={() => void c.pasteFromClipboard()}
         />
-      </div>
 
-      <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
         {c.result && c.currentMarketCap && c.buyMarketCap && c.token ? (
           <ResultCard
             result={c.result}
@@ -165,23 +146,24 @@ function Index() {
 
         {c.token ? <TokenAnalysis token={c.token} /> : null}
 
+        {c.result ? (
+          <section className="rounded-2xl border border-chart-4/35 bg-chart-4/10 p-4 text-xs leading-relaxed text-muted-foreground">
+            <p className="font-semibold text-chart-4">⚠️ Estimated Value</p>
+            <p className="mt-1">
+              Your estimated profit is calculated using market-cap movement. Actual sell value can be
+              lower because of liquidity, price impact, slippage, trading fees, and changing market
+              conditions.
+            </p>
+            <p className="mt-2">Market cap does not equal the amount of money available to sell.</p>
+            <p className="mt-2">
+              This tool shows market data and estimates only — it is not financial advice or an
+              investment recommendation.
+            </p>
+          </section>
+        ) : null}
+
         <RecentChecks history={c.history} onClear={c.clearAllHistory} tick={tick} />
       </div>
-
-      {c.result ? (
-        <section className="mt-5 rounded-2xl border border-chart-4/35 bg-chart-4/10 p-4 text-xs leading-relaxed text-muted-foreground">
-          <p className="font-semibold text-chart-4">⚠️ Estimated Value</p>
-          <p className="mt-1">
-            Your estimated profit is calculated using market-cap movement. Actual sell value can be
-            lower because of liquidity, price impact, slippage, trading fees, and changing market
-            conditions.
-          </p>
-          <p className="mt-2">Market cap does not equal the amount of money available to sell.</p>
-          <p className="mt-2">
-            Market data and estimates only — not financial advice or an investment recommendation.
-          </p>
-        </section>
-      ) : null}
     </main>
   );
 }
