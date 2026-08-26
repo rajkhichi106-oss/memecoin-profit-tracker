@@ -160,22 +160,61 @@ type TokenBalance = {
   uiTokenAmount?: { uiAmount?: number | null };
 };
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const res = await fetch(RPC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  if (!res.ok) throw new Error(`RPC ${res.status}`);
-  const json = (await res.json()) as { result?: T; error?: { message?: string } };
-  if (json.error) throw new Error(json.error.message ?? "RPC error");
-  return json.result as T;
+class RpcRateLimit extends Error {}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Public RPC endpoints are aggressively rate-limited; rotate + retry. */
+const RPC_URLS = [RPC_URL, "https://solana-rpc.publicnode.com", "https://rpc.ankr.com/solana"];
+
+async function rpc<T>(method: string, params: unknown[], attempts = 3): Promise<T> {
+  let lastRateLimited = false;
+  for (let i = 0; i < attempts; i++) {
+    const url = RPC_URLS[i % RPC_URLS.length]!;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      });
+      if (res.status === 429 || res.status === 403) {
+        lastRateLimited = true;
+        await sleep(350 * (i + 1));
+        continue;
+      }
+      if (!res.ok) throw new Error(`RPC ${res.status}`);
+      const json = (await res.json()) as { result?: T; error?: { code?: number; message?: string } };
+      if (json.error) {
+        if (json.error.code === 429) {
+          lastRateLimited = true;
+          await sleep(350 * (i + 1));
+          continue;
+        }
+        throw new Error(json.error.message ?? "RPC error");
+      }
+      return json.result as T;
+    } catch (err) {
+      if (i === attempts - 1) {
+        if (lastRateLimited) throw new RpcRateLimit();
+        throw err;
+      }
+      await sleep(250 * (i + 1));
+    }
+  }
+  throw lastRateLimited ? new RpcRateLimit() : new Error("RPC failed");
 }
+
+const tradesCache = new Map<string, { at: number; value: WalletTradesResult }>();
+const TRADES_TTL = 20_000;
 
 export async function loadWalletTrades(
   wallet: string,
   limit: number,
 ): Promise<WalletTradesResult> {
+  const cacheKey = `${wallet}:${limit}`;
+  const cached = tradesCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < TRADES_TTL) return cached.value;
+
   const solPrice = await loadSolPrice();
   if (!solPrice.ok) return { ok: false, error: solPrice.error };
 
@@ -185,12 +224,19 @@ export async function loadWalletTrades(
       wallet,
       { limit },
     ]);
-  } catch {
-    return { ok: false, error: "Could not reach the Solana network. Try again shortly." };
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof RpcRateLimit
+          ? "Solana's public network is rate-limiting requests right now. Try again in a few seconds."
+          : "Could not reach the Solana network. Try again shortly.",
+    };
   }
   if (!signatures || signatures.length === 0) {
     return { ok: true, trades: [], solPriceUsd: solPrice.priceUsd };
   }
+
 
   const raw: {
     signature: string;
