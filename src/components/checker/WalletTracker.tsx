@@ -47,7 +47,7 @@ export function WalletTracker({ usdInr, onTrack, tick }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetchTrades({ data: { wallet: address, limit: 12 } });
+        const res = await fetchTrades({ data: { wallet: address, limit: 8 } });
         if (!res.ok) {
           setError(res.error);
           return;
