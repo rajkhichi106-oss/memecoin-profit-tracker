@@ -364,5 +364,7 @@ export async function loadWalletTrades(
     };
   });
 
-  return { ok: true, trades, solPriceUsd: solPrice.priceUsd };
+  const result: WalletTradesResult = { ok: true, trades, solPriceUsd: solPrice.priceUsd };
+  tradesCache.set(cacheKey, { at: Date.now(), value: result });
+  return result;
 }
