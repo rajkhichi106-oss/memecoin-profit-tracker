@@ -247,6 +247,7 @@ export async function loadWalletTrades(
     blockTime: number | null;
   }[] = [];
 
+  let txFailures = 0;
   for (const sig of signatures) {
     let tx: RpcTx | null = null;
     try {
@@ -255,8 +256,12 @@ export async function loadWalletTrades(
         { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 },
       ]);
     } catch {
+      txFailures += 1;
+      // Stop early once the public RPC starts refusing — keep whatever we have.
+      if (txFailures >= 3) break;
       continue;
     }
+
     if (!tx?.meta || tx.meta.err) continue;
 
     const keys = (tx.transaction?.message?.accountKeys ?? []).map((k) =>
