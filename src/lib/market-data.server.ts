@@ -307,7 +307,16 @@ export async function loadWalletTrades(
     });
   }
 
+  if (raw.length === 0 && txFailures > 0) {
+    return {
+      ok: false,
+      error:
+        "Solana's public network is rate-limiting requests right now. Try again in a few seconds.",
+    };
+  }
+
   const uniqueMints = [...new Set(raw.map((r) => r.mint))].slice(0, 20);
+
   const meta = new Map<string, DexPair>();
   if (uniqueMints.length > 0) {
     try {
