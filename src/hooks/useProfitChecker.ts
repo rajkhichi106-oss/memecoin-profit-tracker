@@ -165,10 +165,29 @@ export function useProfitChecker() {
           setRefreshing(false);
         }
       }
-
     },
-    [ca, amountValue, buyMarketCap, token, fetchToken, fetchSol, fetchFx],
+    [ca, token, usdInr, fetchToken, fetchSol, fetchFx],
   );
+
+  // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
+  useEffect(() => {
+    const address = ca.trim();
+    if (!isValidSolanaAddress(address)) return;
+    if (lastFetch.current.ca === address && Date.now() - lastFetch.current.at < CACHE_TTL) return;
+    const id = window.setTimeout(() => void runFetch("check"), 550);
+    return () => window.clearTimeout(id);
+  }, [ca, runFetch]);
+
+  // A new contract address invalidates the pinned pair.
+  useEffect(() => {
+    const address = ca.trim();
+    if (pinnedPair.current.ca && pinnedPair.current.ca !== address) {
+      pinnedPair.current = { ca: "", pairAddress: "" };
+      setToken(null);
+      setLastUpdated(null);
+    }
+  }, [ca]);
+
 
   const check = useCallback(() => void runFetch("check"), [runFetch]);
   const refreshNow = useCallback(() => void runFetch("refresh"), [runFetch]);
