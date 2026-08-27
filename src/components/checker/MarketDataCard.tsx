@@ -40,6 +40,13 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
   );
 }
 
+const TF: { key: "m5" | "h1" | "h6" | "h24"; label: string }[] = [
+  { key: "m5", label: "5m" },
+  { key: "h1", label: "1h" },
+  { key: "h6", label: "6h" },
+  { key: "h24", label: "24h" },
+];
+
 export function MarketDataCard({
   token,
   solPrice,
@@ -51,34 +58,44 @@ export function MarketDataCard({
   onCopy,
   tick,
 }: Props) {
-  const change = token.priceChange24h;
   const lowLiquidity = (token.liquidityUsd ?? 0) < 5_000;
 
   return (
-    <section className="glass rounded-3xl p-5 sm:p-7">
+    <section className="glass rounded-2xl p-4 sm:p-5" data-tick={tick}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">
-            {token.name} <span className="text-muted-foreground">(${token.symbol})</span>
-          </h2>
-          <button
-            type="button"
-            onClick={() => onCopy(token.address, "Contract address copied")}
-            className="num mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            {shortenAddress(token.address, 6)} <Copy className="size-3" />
-          </button>
+        <div className="flex items-center gap-2.5">
+          {token.imageUrl ? (
+            <img
+              src={token.imageUrl}
+              alt={`${token.symbol} token logo`}
+              loading="lazy"
+              className="size-9 rounded-full border border-border object-cover"
+            />
+          ) : null}
+          <div>
+            <h2 className="text-base font-semibold">
+              {token.name} <span className="text-muted-foreground">(${token.symbol})</span>
+            </h2>
+            <button
+              type="button"
+              onClick={() => onCopy(token.address, "Contract address copied")}
+              className="num mt-0.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {shortenAddress(token.address, 6)} <Copy className="size-3" />
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={String(refreshInterval)}
             onValueChange={(v) => setRefreshInterval(Number(v) as RefreshOption)}
           >
-            <SelectTrigger className="h-9 w-[150px] text-xs">
+            <SelectTrigger className="h-9 w-[142px] text-xs">
               <SelectValue placeholder="Auto Refresh" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="0">Auto refresh: Off</SelectItem>
+              <SelectItem value="15">Every 15 seconds</SelectItem>
               <SelectItem value="30">Every 30 seconds</SelectItem>
               <SelectItem value="60">Every 60 seconds</SelectItem>
               <SelectItem value="300">Every 5 minutes</SelectItem>
@@ -86,31 +103,67 @@ export function MarketDataCard({
           </Select>
           <Button variant="secondary" size="sm" onClick={onRefresh} disabled={refreshing}>
             <RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
-            Refresh Now
+            Refresh
           </Button>
         </div>
       </div>
 
-      <div className="mt-4">
+      {/* Price change grid */}
+      <div className="mt-4 grid grid-cols-4 gap-2">
+        {TF.map(({ key, label }) => {
+          const v = token.priceChange[key];
+          return (
+            <div key={key} className="rounded-xl border border-border bg-secondary/35 px-2 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+              <p
+                className={cn(
+                  "num mt-0.5 text-sm font-semibold",
+                  v === null ? "" : v >= 0 ? "text-profit" : "text-loss",
+                )}
+              >
+                {v === null ? "—" : formatPercent(v)}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Volume grid */}
+      <div className="mt-2 grid grid-cols-4 gap-2">
+        {TF.map(({ key, label }) => (
+          <div key={key} className="rounded-xl border border-border bg-secondary/20 px-2 py-2 text-center">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label} vol</p>
+            <p className="num mt-0.5 text-xs font-semibold">
+              {formatCompactUsd(token.volume[key])}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3">
         <Row label="Current Price" value={formatPrice(token.priceUsd)} />
-        <Row
-          label={token.marketCapMetric === "fdv" ? "FDV (market cap unavailable)" : "Market Cap"}
-          value={formatCompactUsd(token.marketCap ?? token.fdv)}
-        />
+        <Row label="Market Cap" value={formatCompactUsd(token.marketCap)} />
+        <Row label="FDV" value={formatCompactUsd(token.fdv)} />
         <Row label="Liquidity" value={formatCompactUsd(token.liquidityUsd)} />
-        <Row
-          label="24h Change"
-          value={change === null ? "—" : formatPercent(change)}
-          tone={change === null ? undefined : change >= 0 ? "text-profit" : "text-loss"}
-        />
-        <Row label="24h Volume" value={formatCompactUsd(token.volume24h)} />
+        {TF.map(({ key, label }) => {
+          const t = token.txns[key];
+          return (
+            <Row
+              key={key}
+              label={`${label} buys / sells`}
+              value={t ? `${t.buys.toLocaleString()} / ${t.sells.toLocaleString()}` : "—"}
+            />
+          );
+        })}
+        <Row label="DEX / Pair" value={`${token.dexId} • ${token.pairLabel}`} />
+        <Row label="Pair Address" value={token.pairAddress ? shortenAddress(token.pairAddress, 5) : "—"} />
         <Row label="SOL Price" value={solPrice ? `$${solPrice.toFixed(2)}` : "—"} />
-        <Row label="DEX" value={token.dexId} />
       </div>
 
       {token.pairCount > 1 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          {token.pairCount} trading pairs found — using the deepest liquidity pair.
+          {token.pairCount} Solana pairs found — locked to the deepest-liquidity pair for this
+          session so values stay stable between refreshes.
         </p>
       ) : null}
 
@@ -126,15 +179,17 @@ export function MarketDataCard({
             View on DexScreener <ExternalLink className="size-3.5" />
           </a>
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onCopy(token.address, "Contract address copied")}
-        >
-          <Copy className="size-3.5" /> Copy CA
-        </Button>
-        <span className="num ml-auto text-xs text-muted-foreground" data-tick={tick}>
-          {lastUpdated ? `Last updated: ${timeAgo(lastUpdated)}` : "—"}
+        {token.websites[0] ? (
+          <Button asChild variant="ghost" size="sm">
+            <a href={token.websites[0]} target="_blank" rel="noopener noreferrer">
+              Website <ExternalLink className="size-3.5" />
+            </a>
+          </Button>
+        ) : null}
+        <span className="num ml-auto text-xs text-muted-foreground">
+          {lastUpdated
+            ? `Last updated ${new Date(lastUpdated).toLocaleTimeString()} (${timeAgo(lastUpdated)})`
+            : "—"}
         </span>
       </div>
     </section>

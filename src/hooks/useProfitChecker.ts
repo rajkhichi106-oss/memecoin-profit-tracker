@@ -21,9 +21,10 @@ import {
 import { clearHistory, loadHistory, saveHistoryEntry, type HistoryEntry } from "@/lib/history";
 
 export type AmountUnit = "SOL" | "USD";
-export type RefreshOption = 0 | 30 | 60 | 300;
+export type RefreshOption = 0 | 15 | 30 | 60 | 300;
 
-const CACHE_TTL = 10_000;
+const CACHE_TTL = 8_000;
+const FX_TTL = 300_000;
 
 export function useProfitChecker() {
   const fetchToken = useServerFn(getTokenData);
@@ -47,6 +48,9 @@ export function useProfitChecker() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const lastFetch = useRef<{ ca: string; at: number }>({ ca: "", at: 0 });
+  const reqId = useRef(0);
+  const fxFetchedAt = useRef(0);
+  const pinnedPair = useRef<{ ca: string; pairAddress: string }>({ ca: "", pairAddress: "" });
 
   useEffect(() => {
     setHistory(loadHistory());
@@ -107,18 +111,10 @@ export function useProfitChecker() {
     async (mode: "check" | "refresh") => {
       const address = ca.trim();
       if (!isValidSolanaAddress(address)) {
-        setError("That doesn't look like a valid Solana contract address.");
+        if (mode === "check") setError("That doesn't look like a valid Solana contract address.");
         return;
       }
       if (mode === "check") {
-        if (!amountValue) {
-          setError("Enter how much you invested.");
-          return;
-        }
-        if (!buyMarketCap) {
-          setError("Enter the market cap you bought at (e.g. 53K).");
-          return;
-        }
         const now = Date.now();
         if (token && lastFetch.current.ca === address && now - lastFetch.current.at < CACHE_TTL) {
           setError(null);
@@ -126,46 +122,76 @@ export function useProfitChecker() {
         }
       }
 
+      // Abort-previous semantics: only the newest request may commit state.
+      const id = ++reqId.current;
+      const stale = () => id !== reqId.current;
+
       if (mode === "check") setLoading(true);
       else setRefreshing(true);
       setError(null);
       try {
+        const pinned = pinnedPair.current.ca === address ? pinnedPair.current.pairAddress : "";
+        const needFx = !usdInr || Date.now() - fxFetchedAt.current > FX_TTL;
         const [tokenRes, solRes, fxRes] = await Promise.all([
-          fetchToken({ data: { ca: address } }),
+          fetchToken({ data: { ca: address, pairAddress: pinned } }),
           fetchSol({}),
-          fetchFx({}),
+          needFx ? fetchFx({}) : Promise.resolve(null),
         ]);
+        if (stale()) return;
 
         if (!tokenRes.ok) {
           setError(tokenRes.error);
           return;
         }
-        if (!solRes.ok) {
-          setError(solRes.error);
-          return;
+        if (fxRes?.ok) {
+          setUsdInr(fxRes.usdInr);
+          fxFetchedAt.current = Date.now();
         }
-        if (fxRes.ok) setUsdInr(fxRes.usdInr);
+        if (solRes.ok) setSolPrice(solRes.priceUsd);
 
-        if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
-          setToken(tokenRes.token);
-          setSolPrice(solRes.priceUsd);
-          setError("Current market cap unavailable. Try again shortly.");
-          return;
+        // Pin the chosen pair for the rest of the session (unless it goes invalid).
+        if (tokenRes.token.pairAddress) {
+          pinnedPair.current = { ca: address, pairAddress: tokenRes.token.pairAddress };
         }
 
         setToken(tokenRes.token);
-        setSolPrice(solRes.priceUsd);
-        setLastUpdated(Date.now());
+        setLastUpdated(tokenRes.token.fetchedAt);
         lastFetch.current = { ca: address, at: Date.now() };
+
+        if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
+          setError("Market cap unavailable for this pair right now.");
+        }
       } catch {
-        setError("Market data service is unavailable. Try again shortly.");
+        if (!stale()) setError("Market data temporarily unavailable");
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!stale()) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [ca, amountValue, buyMarketCap, token, fetchToken, fetchSol, fetchFx],
+    [ca, token, usdInr, fetchToken, fetchSol, fetchFx],
   );
+
+  // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
+  useEffect(() => {
+    const address = ca.trim();
+    if (!isValidSolanaAddress(address)) return;
+    if (lastFetch.current.ca === address && Date.now() - lastFetch.current.at < CACHE_TTL) return;
+    const id = window.setTimeout(() => void runFetch("check"), 550);
+    return () => window.clearTimeout(id);
+  }, [ca, runFetch]);
+
+  // A new contract address invalidates the pinned pair.
+  useEffect(() => {
+    const address = ca.trim();
+    if (pinnedPair.current.ca && pinnedPair.current.ca !== address) {
+      pinnedPair.current = { ca: "", pairAddress: "" };
+      setToken(null);
+      setLastUpdated(null);
+    }
+  }, [ca]);
+
 
   const check = useCallback(() => void runFetch("check"), [runFetch]);
   const refreshNow = useCallback(() => void runFetch("refresh"), [runFetch]);

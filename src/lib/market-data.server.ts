@@ -6,7 +6,8 @@ import type {
   WalletTradesResult,
 } from "./market-data-types";
 
-const DEX_BASE = "https://api.dexscreener.com/latest/dex";
+const DEX_ROOT = "https://api.dexscreener.com";
+const CHAIN = "solana";
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 const RPC_URL = "https://api.mainnet-beta.solana.com";
 const LAMPORTS = 1_000_000_000;
@@ -15,17 +16,24 @@ type DexPair = {
   chainId: string;
   dexId?: string;
   url?: string;
+  labels?: string[];
   pairAddress?: string;
   baseToken?: { address?: string; name?: string; symbol?: string };
+  quoteToken?: { symbol?: string };
   priceUsd?: string;
   priceNative?: string;
   liquidity?: { usd?: number };
   fdv?: number;
   marketCap?: number;
-  volume?: { h24?: number };
-  priceChange?: { h24?: number };
+  volume?: { m5?: number; h1?: number; h6?: number; h24?: number };
+  priceChange?: { m5?: number; h1?: number; h6?: number; h24?: number };
+  txns?: Record<string, { buys?: number; sells?: number } | undefined>;
   pairCreatedAt?: number;
-  txns?: { h24?: { buys?: number; sells?: number } };
+  info?: {
+    imageUrl?: string;
+    websites?: { url?: string }[];
+    socials?: { type?: string; platform?: string; url?: string }[];
+  };
 };
 
 const num = (v: unknown): number | null => {
@@ -33,75 +41,217 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-async function fetchPairs(
-  address: string,
-): Promise<DexPair[] | { rateLimited: true } | null> {
-  const res = await fetch(`${DEX_BASE}/tokens/${address}`, {
-    headers: { accept: "application/json" },
+class DexRateLimited extends Error {}
+class DexUnavailable extends Error {}
+
+/** Short-lived response cache so repeated polls never hammer DexScreener. */
+const respCache = new Map<string, { at: number; data: unknown }>();
+
+async function dexGet<T>(path: string, ttlMs: number): Promise<T> {
+  const hit = respCache.get(path);
+  const now = Date.now();
+  if (hit && now - hit.at < ttlMs) return hit.data as T;
+  let res: Response;
+  try {
+    res = await fetch(`${DEX_ROOT}${path}`, { headers: { accept: "application/json" } });
+  } catch {
+    throw new DexUnavailable();
+  }
+  if (res.status === 429) {
+    // Serve slightly stale data instead of failing when we can.
+    if (hit) return hit.data as T;
+    throw new DexRateLimited();
+  }
+  if (!res.ok) {
+    if (hit) return hit.data as T;
+    throw new DexUnavailable();
+  }
+  const data = (await res.json()) as T;
+  respCache.set(path, { at: now, data });
+  if (respCache.size > 120) {
+    for (const [k, v] of respCache) if (now - v.at > 120_000) respCache.delete(k);
+  }
+  return data;
+}
+
+const solanaOnly = (pairs: (DexPair | null | undefined)[] | null | undefined): DexPair[] =>
+  (pairs ?? []).filter((p): p is DexPair => !!p && p.chainId === CHAIN && !!p.priceUsd);
+
+/** GET /tokens/v1/{chain}/{address} — primary source for live token info. */
+async function fetchTokenPairs(address: string, ttlMs = 8_000): Promise<DexPair[]> {
+  const json = await dexGet<DexPair[] | { pairs?: DexPair[] }>(
+    `/tokens/v1/${CHAIN}/${address}`,
+    ttlMs,
+  );
+  const arr = Array.isArray(json) ? json : (json.pairs ?? []);
+  return solanaOnly(arr);
+}
+
+/** GET /token-pairs/v1/{chain}/{address} — all pools for a token. */
+async function fetchAllTokenPairs(address: string, ttlMs = 30_000): Promise<DexPair[]> {
+  const json = await dexGet<DexPair[]>(`/token-pairs/v1/${CHAIN}/${address}`, ttlMs);
+  return solanaOnly(Array.isArray(json) ? json : []);
+}
+
+/** GET /latest/dex/pairs/{chain}/{pairId} — refresh the pinned pair only. */
+async function fetchPair(pairAddress: string, ttlMs = 8_000): Promise<DexPair | null> {
+  const json = await dexGet<{ pair?: DexPair | null; pairs?: DexPair[] | null }>(
+    `/latest/dex/pairs/${CHAIN}/${pairAddress}`,
+    ttlMs,
+  );
+  const pair = json.pair ?? json.pairs?.[0] ?? null;
+  return pair && pair.chainId === CHAIN ? pair : null;
+}
+
+/** GET /latest/dex/search?q= — fallback for names/symbols or missing token rows. */
+async function searchPairs(query: string, ttlMs = 15_000): Promise<DexPair[]> {
+  const json = await dexGet<{ pairs?: DexPair[] | null }>(
+    `/latest/dex/search?q=${encodeURIComponent(query)}`,
+    ttlMs,
+  );
+  return solanaOnly(json.pairs ?? []);
+}
+
+function byLiquidity(pairs: DexPair[]): DexPair[] {
+  return [...pairs].sort((a, b) => {
+    const liq = (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0);
+    if (liq !== 0) return liq;
+    return (b.volume?.h24 ?? 0) - (a.volume?.h24 ?? 0);
   });
-  if (res.status === 429) return { rateLimited: true };
-  if (!res.ok) return null;
-  const json = (await res.json()) as { pairs?: DexPair[] | null };
-  return (json.pairs ?? []).filter((p) => p.chainId === "solana");
 }
 
 function bestPair(pairs: DexPair[]): DexPair | undefined {
-  return [...pairs].sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
+  return byLiquidity(pairs)[0];
 }
 
-export async function loadTokenData(ca: string): Promise<TokenDataResult> {
-  let pairs: Awaited<ReturnType<typeof fetchPairs>>;
-  try {
-    pairs = await fetchPairs(ca);
-  } catch {
-    return { ok: false, error: "Market data service is unavailable. Try again shortly." };
-  }
-  if (pairs && "rateLimited" in pairs) {
-    return {
-      ok: false,
-      error: "Rate limited by the market data provider. Try again in a moment.",
-    };
-  }
-  if (!pairs) {
-    return { ok: false, error: "Market data service is unavailable. Try again shortly." };
-  }
-  if (pairs.length === 0) {
-    return { ok: false, error: "Token data could not be found. Check the CA and try again." };
-  }
+const pairLabel = (p: DexPair) =>
+  `${p.baseToken?.symbol ?? "?"}/${p.quoteToken?.symbol ?? "?"}${
+    p.labels?.length ? ` ${p.labels.join(" ")}` : ""
+  }`;
 
-  const best = bestPair(pairs)!;
+const tf = (o: { m5?: number; h1?: number; h6?: number; h24?: number } | undefined) => ({
+  m5: num(o?.m5),
+  h1: num(o?.h1),
+  h6: num(o?.h6),
+  h24: num(o?.h24),
+});
+
+const txn = (o: { buys?: number; sells?: number } | undefined) =>
+  o ? { buys: o.buys ?? 0, sells: o.sells ?? 0 } : null;
+
+function toTokenData(best: DexPair, all: DexPair[], fallbackAddress: string) {
   const priceUsd = num(best.priceUsd);
-  if (priceUsd === null) {
-    return { ok: false, error: "Token price unavailable right now. Try again shortly." };
-  }
+  if (priceUsd === null) return null;
   const marketCap = num(best.marketCap);
   const fdv = num(best.fdv);
-
   return {
-    ok: true,
-    token: {
-      name: best.baseToken?.name ?? "Unknown",
-      symbol: best.baseToken?.symbol ?? "???",
-      address: best.baseToken?.address ?? ca,
-      priceUsd,
-      priceNative: num(best.priceNative) ?? 0,
-      marketCap,
-      fdv,
-      marketCapMetric: marketCap !== null ? "marketCap" : fdv !== null ? "fdv" : "none",
-      liquidityUsd: num(best.liquidity?.usd),
-      volume24h: num(best.volume?.h24),
-      priceChange24h: num(best.priceChange?.h24),
-      pairAddress: best.pairAddress ?? "",
-      dexId: best.dexId ?? "unknown",
-      pairCreatedAt: num(best.pairCreatedAt),
-      pairUrl: best.url ?? `https://dexscreener.com/solana/${best.pairAddress ?? ca}`,
-      txns24h: best.txns?.h24
-        ? { buys: best.txns.h24.buys ?? 0, sells: best.txns.h24.sells ?? 0 }
-        : null,
-      pairCount: pairs.length,
+    name: best.baseToken?.name ?? "Unknown",
+    symbol: best.baseToken?.symbol ?? "???",
+    address: best.baseToken?.address ?? fallbackAddress,
+    imageUrl: best.info?.imageUrl ?? null,
+    websites: (best.info?.websites ?? []).map((w) => w.url).filter((u): u is string => !!u),
+    socials: (best.info?.socials ?? [])
+      .map((s) => ({ type: s.type ?? s.platform ?? "link", url: s.url ?? "" }))
+      .filter((s) => !!s.url),
+    priceUsd,
+    priceNative: num(best.priceNative) ?? 0,
+    marketCap,
+    fdv,
+    marketCapMetric: (marketCap !== null ? "marketCap" : fdv !== null ? "fdv" : "none") as
+      | "marketCap"
+      | "fdv"
+      | "none",
+    liquidityUsd: num(best.liquidity?.usd),
+    volume24h: num(best.volume?.h24),
+    priceChange24h: num(best.priceChange?.h24),
+    volume: tf(best.volume),
+    priceChange: tf(best.priceChange),
+    txns: {
+      m5: txn(best.txns?.["m5"]),
+      h1: txn(best.txns?.["h1"]),
+      h6: txn(best.txns?.["h6"]),
+      h24: txn(best.txns?.["h24"]),
     },
+    txns24h: txn(best.txns?.["h24"]),
+    pairAddress: best.pairAddress ?? "",
+    pairLabel: pairLabel(best),
+    dexId: best.dexId ?? "unknown",
+    pairCreatedAt: num(best.pairCreatedAt),
+    pairUrl: best.url ?? `https://dexscreener.com/solana/${best.pairAddress ?? fallbackAddress}`,
+    pairCount: all.length || 1,
+    pairs: byLiquidity(all)
+      .slice(0, 8)
+      .map((p) => ({
+        pairAddress: p.pairAddress ?? "",
+        dexId: p.dexId ?? "unknown",
+        label: pairLabel(p),
+        liquidityUsd: num(p.liquidity?.usd),
+      }))
+      .filter((p) => !!p.pairAddress),
+    fetchedAt: Date.now(),
   };
 }
+
+const NOT_FOUND = "Token not found on DEX Screener";
+const UNAVAILABLE = "Market data temporarily unavailable";
+const RATE_LIMITED = "Rate limited by DEX Screener — retrying shortly";
+
+/**
+ * Loads live token data for a Solana token.
+ * When `pinnedPair` is supplied we refresh only that pair so the panel never
+ * switches pools between refreshes.
+ */
+export async function loadTokenData(
+  ca: string,
+  pinnedPair?: string | undefined,
+): Promise<TokenDataResult> {
+  try {
+    if (pinnedPair) {
+      const pair = await fetchPair(pinnedPair);
+      if (pair) {
+        const token = toTokenData(pair, [pair], ca);
+        if (token) {
+          // Keep the known pool list without re-fetching it every poll.
+          const all = await fetchAllTokenPairs(token.address, 120_000).catch(() => [pair]);
+          const merged = toTokenData(pair, all.length ? all : [pair], ca)!;
+          return { ok: true, token: merged };
+        }
+      }
+    }
+
+    let pairs = await fetchTokenPairs(ca).catch((err) => {
+      if (err instanceof DexRateLimited) throw err;
+      return [] as DexPair[];
+    });
+    if (pairs.length === 0) pairs = await searchPairs(ca).catch(() => [] as DexPair[]);
+    if (pairs.length === 0) return { ok: false, error: NOT_FOUND };
+
+    const target = ca.toLowerCase();
+    const matching = pairs.filter((p) => p.baseToken?.address?.toLowerCase() === target);
+    const pool = matching.length ? matching : pairs;
+    const best = bestPair(pool)!;
+    const token = toTokenData(best, pool, ca);
+    if (!token) return { ok: false, error: UNAVAILABLE };
+    return { ok: true, token };
+  } catch (err) {
+    if (err instanceof DexRateLimited) return { ok: false, error: RATE_LIMITED };
+    return { ok: false, error: UNAVAILABLE };
+  }
+}
+
+/** Legacy helper used by the wallet tracker. */
+async function fetchPairs(address: string): Promise<DexPair[] | { rateLimited: true } | null> {
+  try {
+    const viaTokens = await fetchTokenPairs(address, 15_000);
+    if (viaTokens.length) return viaTokens;
+    const res = await dexGet<{ pairs?: DexPair[] | null }>(`/latest/dex/tokens/${address}`, 15_000);
+    return solanaOnly(res.pairs ?? []);
+  } catch (err) {
+    if (err instanceof DexRateLimited) return { rateLimited: true };
+    return null;
+  }
+}
+
 
 export async function loadSolPrice(): Promise<SolPriceResult> {
   try {
