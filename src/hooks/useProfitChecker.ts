@@ -23,7 +23,8 @@ import { clearHistory, loadHistory, saveHistoryEntry, type HistoryEntry } from "
 export type AmountUnit = "SOL" | "USD";
 export type RefreshOption = 0 | 30 | 60 | 300;
 
-const CACHE_TTL = 10_000;
+const CACHE_TTL = 8_000;
+const FX_TTL = 300_000;
 
 export function useProfitChecker() {
   const fetchToken = useServerFn(getTokenData);
@@ -47,6 +48,9 @@ export function useProfitChecker() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const lastFetch = useRef<{ ca: string; at: number }>({ ca: "", at: 0 });
+  const reqId = useRef(0);
+  const fxFetchedAt = useRef(0);
+  const pinnedPair = useRef<{ ca: string; pairAddress: string }>({ ca: "", pairAddress: "" });
 
   useEffect(() => {
     setHistory(loadHistory());
