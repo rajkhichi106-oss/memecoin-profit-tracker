@@ -107,18 +107,10 @@ export function useProfitChecker() {
     async (mode: "check" | "refresh") => {
       const address = ca.trim();
       if (!isValidSolanaAddress(address)) {
-        setError("That doesn't look like a valid Solana contract address.");
+        if (mode === "check") setError("That doesn't look like a valid Solana contract address.");
         return;
       }
       if (mode === "check") {
-        if (!amountValue) {
-          setError("Enter how much you invested.");
-          return;
-        }
-        if (!buyMarketCap) {
-          setError("Enter the market cap you bought at (e.g. 53K).");
-          return;
-        }
         const now = Date.now();
         if (token && lastFetch.current.ca === address && now - lastFetch.current.at < CACHE_TTL) {
           setError(null);
@@ -126,43 +118,54 @@ export function useProfitChecker() {
         }
       }
 
+      // Abort-previous semantics: only the newest request may commit state.
+      const id = ++reqId.current;
+      const stale = () => id !== reqId.current;
+
       if (mode === "check") setLoading(true);
       else setRefreshing(true);
       setError(null);
       try {
+        const pinned = pinnedPair.current.ca === address ? pinnedPair.current.pairAddress : "";
+        const needFx = !usdInr || Date.now() - fxFetchedAt.current > FX_TTL;
         const [tokenRes, solRes, fxRes] = await Promise.all([
-          fetchToken({ data: { ca: address } }),
+          fetchToken({ data: { ca: address, pairAddress: pinned } }),
           fetchSol({}),
-          fetchFx({}),
+          needFx ? fetchFx({}) : Promise.resolve(null),
         ]);
+        if (stale()) return;
 
         if (!tokenRes.ok) {
           setError(tokenRes.error);
           return;
         }
-        if (!solRes.ok) {
-          setError(solRes.error);
-          return;
+        if (fxRes?.ok) {
+          setUsdInr(fxRes.usdInr);
+          fxFetchedAt.current = Date.now();
         }
-        if (fxRes.ok) setUsdInr(fxRes.usdInr);
+        if (solRes.ok) setSolPrice(solRes.priceUsd);
 
-        if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
-          setToken(tokenRes.token);
-          setSolPrice(solRes.priceUsd);
-          setError("Current market cap unavailable. Try again shortly.");
-          return;
+        // Pin the chosen pair for the rest of the session (unless it goes invalid).
+        if (tokenRes.token.pairAddress) {
+          pinnedPair.current = { ca: address, pairAddress: tokenRes.token.pairAddress };
         }
 
         setToken(tokenRes.token);
-        setSolPrice(solRes.priceUsd);
-        setLastUpdated(Date.now());
+        setLastUpdated(tokenRes.token.fetchedAt);
         lastFetch.current = { ca: address, at: Date.now() };
+
+        if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
+          setError("Market cap unavailable for this pair right now.");
+        }
       } catch {
-        setError("Market data service is unavailable. Try again shortly.");
+        if (!stale()) setError("Market data temporarily unavailable");
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!stale()) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
+
     },
     [ca, amountValue, buyMarketCap, token, fetchToken, fetchSol, fetchFx],
   );
