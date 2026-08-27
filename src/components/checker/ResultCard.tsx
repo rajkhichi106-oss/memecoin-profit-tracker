@@ -154,6 +154,7 @@ export function ResultCard({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="0">Auto refresh: Off</SelectItem>
+              <SelectItem value="15">Every 15 seconds</SelectItem>
               <SelectItem value="30">Every 30 seconds</SelectItem>
               <SelectItem value="60">Every 60 seconds</SelectItem>
               <SelectItem value="300">Every 5 minutes</SelectItem>
@@ -164,12 +165,16 @@ export function ResultCard({
             Refresh
           </Button>
           <span className="num ml-auto text-[11px] text-muted-foreground">
-            {lastUpdated ? `Updated ${timeAgo(lastUpdated)}` : "—"}
+            {lastUpdated
+              ? `Updated ${new Date(lastUpdated).toLocaleTimeString()} (${timeAgo(lastUpdated)})`
+              : "—"}
           </span>
         </div>
 
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-          Estimated from market-cap movement — not a live sell quote. Invested{" "}
+          Estimated from your manually entered SOL amount and entry market cap combined with live
+          DEX Screener market data — not a live sell quote and not connected to any wallet or
+          exchange account. Invested{" "}
           {formatUsd(result.initialUsd)}
           {usdInr ? ` (${formatInr(result.initialUsd * usdInr)})` : ""}.
         </p>

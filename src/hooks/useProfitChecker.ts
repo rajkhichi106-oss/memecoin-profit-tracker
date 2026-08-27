@@ -21,7 +21,7 @@ import {
 import { clearHistory, loadHistory, saveHistoryEntry, type HistoryEntry } from "@/lib/history";
 
 export type AmountUnit = "SOL" | "USD";
-export type RefreshOption = 0 | 30 | 60 | 300;
+export type RefreshOption = 0 | 15 | 30 | 60 | 300;
 
 const CACHE_TTL = 8_000;
 const FX_TTL = 300_000;
