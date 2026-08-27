@@ -7,7 +7,6 @@ import type {
 } from "./market-data-types";
 
 const DEX_ROOT = "https://api.dexscreener.com";
-const DEX_BASE = `${DEX_ROOT}/latest/dex`;
 const CHAIN = "solana";
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 const RPC_URL = "https://api.mainnet-beta.solana.com";
