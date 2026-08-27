@@ -109,22 +109,9 @@ function Index() {
             onPaste={() => void c.pasteFromClipboard()}
           />
 
-          {c.token ? (
-            <MarketDataCard
-              token={c.token}
-              solPrice={c.solPrice}
-              lastUpdated={c.lastUpdated}
-              refreshing={c.refreshing}
-              refreshInterval={c.refreshInterval}
-              setRefreshInterval={c.setRefreshInterval}
-              onRefresh={c.refreshNow}
-              onCopy={(v, label) => void c.copy(v, label)}
-              tick={tick}
-            />
-          ) : null}
         </div>
 
-        {/* Right: live position (sticky on desktop) */}
+        {/* Right: live position + live DEX Screener market data (sticky on desktop) */}
         <div className="space-y-4 lg:sticky lg:top-4">
           {c.result && c.currentMarketCap && c.buyMarketCap && c.token ? (
             <ResultCard
@@ -144,11 +131,25 @@ function Index() {
             <section className="glass rounded-2xl p-5 text-center">
               <p className="text-sm font-semibold">Live Position</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Enter a CA, your SOL amount and buy market cap — your live profit in INR appears
-                here and refreshes automatically.
+                Enter a CA, your SOL amount and entry market cap — your estimated profit in INR, USD
+                and SOL appears here and refreshes automatically from DEX Screener.
               </p>
             </section>
           )}
+
+          {c.token ? (
+            <MarketDataCard
+              token={c.token}
+              solPrice={c.solPrice}
+              lastUpdated={c.lastUpdated}
+              refreshing={c.refreshing}
+              refreshInterval={c.refreshInterval}
+              setRefreshInterval={c.setRefreshInterval}
+              onRefresh={c.refreshNow}
+              onCopy={(v, label) => void c.copy(v, label)}
+              tick={tick}
+            />
+          ) : null}
 
           {c.targets.length > 0 ? (
             <TargetSection
@@ -158,6 +159,7 @@ function Index() {
             />
           ) : null}
         </div>
+
       </div>
 
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
