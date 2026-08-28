@@ -108,13 +108,21 @@ export function useProfitChecker() {
   }, [customTargetMc, solInvested, buyMarketCap, solPrice]);
 
   const runFetch = useCallback(
-    async (mode: "check" | "refresh") => {
+    async (mode: "check" | "refresh" | "auto") => {
       const address = ca.trim();
       if (!isValidSolanaAddress(address)) {
         if (mode === "check") setError("That doesn't look like a valid Solana contract address.");
         return;
       }
       if (mode === "check") {
+        if (!amountValue) {
+          setError("Enter how much you invested.");
+          return;
+        }
+        if (!buyMarketCap) {
+          setError("Enter the market cap you bought at (e.g. 53K).");
+          return;
+        }
         const now = Date.now();
         if (token && lastFetch.current.ca === address && now - lastFetch.current.at < CACHE_TTL) {
           setError(null);
@@ -126,7 +134,7 @@ export function useProfitChecker() {
       const id = ++reqId.current;
       const stale = () => id !== reqId.current;
 
-      if (mode === "check") setLoading(true);
+      if (mode !== "refresh") setLoading(true);
       else setRefreshing(true);
       setError(null);
       try {
@@ -170,7 +178,7 @@ export function useProfitChecker() {
         }
       }
     },
-    [ca, token, usdInr, fetchToken, fetchSol, fetchFx],
+    [ca, amountValue, buyMarketCap, token, usdInr, fetchToken, fetchSol, fetchFx],
   );
 
   // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
@@ -178,7 +186,7 @@ export function useProfitChecker() {
     const address = ca.trim();
     if (!isValidSolanaAddress(address)) return;
     if (lastFetch.current.ca === address && Date.now() - lastFetch.current.at < CACHE_TTL) return;
-    const id = window.setTimeout(() => void runFetch("check"), 550);
+    const id = window.setTimeout(() => void runFetch("auto"), 550);
     return () => window.clearTimeout(id);
   }, [ca, runFetch]);
 
