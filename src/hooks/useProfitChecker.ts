@@ -51,9 +51,6 @@ export function useProfitChecker() {
   const reqId = useRef(0);
   const fxFetchedAt = useRef(0);
   const pinnedPair = useRef<{ ca: string; pairAddress: string }>({ ca: "", pairAddress: "" });
-  const reqId = useRef(0);
-  const fxFetchedAt = useRef(0);
-  const pinnedPair = useRef<{ ca: string; pairAddress: string }>({ ca: "", pairAddress: "" });
 
   useEffect(() => {
     setHistory(loadHistory());
