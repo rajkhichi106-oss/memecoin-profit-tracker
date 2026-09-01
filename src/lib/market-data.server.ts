@@ -279,11 +279,14 @@ export async function loadFxRate(): Promise<FxRateResult> {
     });
     if (!res.ok) return { ok: false, error: "USD/INR rate unavailable. Try again shortly." };
     const json = (await res.json()) as { rates?: Record<string, number> };
-    const inr = num(json.rates?.["INR"]);
+    const rates = Object.fromEntries(
+      Object.entries(json.rates ?? {}).filter(([, value]) => Number.isFinite(value) && value > 0),
+    );
+    const inr = num(rates["INR"]);
     if (inr === null || inr <= 0) {
       return { ok: false, error: "USD/INR rate unavailable. Try again shortly." };
     }
-    return { ok: true, usdInr: inr };
+    return { ok: true, usdInr: inr, rates: { USD: 1, ...rates } };
   } catch {
     return { ok: false, error: "USD/INR rate unavailable. Try again shortly." };
   }

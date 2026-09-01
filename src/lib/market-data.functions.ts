@@ -49,7 +49,7 @@ export const getWalletTrades = createServerFn({ method: "GET" })
   .inputValidator((input: { wallet: string; limit?: number }) => {
     const wallet = (input?.wallet ?? "").trim();
     if (!SOL_ADDRESS_RE.test(wallet)) throw new Error("INVALID_WALLET");
-    const limit = Math.min(Math.max(input?.limit ?? 12, 1), 20);
+    const limit = Math.min(Math.max(input?.limit ?? 20, 1), 30);
     return { wallet, limit };
   })
   .handler(async ({ data }): Promise<WalletTradesResult> => {

@@ -83,6 +83,7 @@ export type ProfitInput = {
   buyMarketCap: number;
   currentMarketCap: number;
   solPriceUsd: number;
+  feeSol?: number;
 };
 
 export type ProfitResult = {
@@ -100,10 +101,11 @@ export function calculateProfit({
   buyMarketCap,
   currentMarketCap,
   solPriceUsd,
+  feeSol = 0,
 }: ProfitInput): ProfitResult {
-  const initialUsd = solInvested * solPriceUsd;
+  const initialUsd = (solInvested + feeSol) * solPriceUsd;
   const multiplier = buyMarketCap > 0 ? currentMarketCap / buyMarketCap : 0;
-  const currentUsd = initialUsd * multiplier;
+  const currentUsd = solInvested * solPriceUsd * multiplier;
   const profitUsd = currentUsd - initialUsd;
   const currentSol = solPriceUsd > 0 ? currentUsd / solPriceUsd : 0;
   return {
@@ -112,7 +114,7 @@ export function calculateProfit({
     currentUsd,
     currentSol,
     profitUsd,
-    profitSol: currentSol - solInvested,
+    profitSol: currentSol - solInvested - feeSol,
     roiPercent: initialUsd > 0 ? (profitUsd / initialUsd) * 100 : 0,
   };
 }
@@ -139,4 +141,31 @@ export function formatInr(value: number, opts?: { sign?: boolean }): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })}`;
+}
+
+export const CURRENCY_CODES = [
+  "INR", "USD", "EUR", "GBP", "JPY", "CNY", "AED", "CAD", "AUD", "SGD", "CHF", "HKD",
+  "NZD", "ZAR", "BRL", "MXN", "KRW", "TRY", "RUB", "THB", "IDR", "MYR", "PHP", "PLN",
+  "SEK", "NOK", "DKK", "SAR", "QAR", "KWD",
+] as const;
+
+export function formatCurrency(
+  valueUsd: number,
+  currency: string,
+  rates: Record<string, number>,
+  opts?: { sign?: boolean },
+): string {
+  const rate = currency === "USD" ? 1 : rates[currency];
+  if (!rate) return formatUsd(valueUsd, opts);
+  const value = valueUsd * rate;
+  if (currency === "INR") return formatInr(value, opts);
+  const sign = opts?.sign && value > 0 ? "+" : "";
+  const abs = Math.abs(value);
+  const digits = abs >= 1000 ? 0 : abs >= 1 ? 2 : 4;
+  return `${sign}${new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value < 0 ? -abs : abs)}`;
 }

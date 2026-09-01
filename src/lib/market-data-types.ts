@@ -54,7 +54,11 @@ export type TokenDataResult = { ok: true; token: TokenData } | { ok: false; erro
 
 export type SolPriceResult = { ok: true; priceUsd: number } | { ok: false; error: string };
 
-export type FxRateResult = { ok: true; usdInr: number } | { ok: false; error: string };
+export type FxRateResult = {
+  ok: true;
+  usdInr: number;
+  rates: Record<string, number>;
+} | { ok: false; error: string };
 
 export type WalletTrade = {
   signature: string;
