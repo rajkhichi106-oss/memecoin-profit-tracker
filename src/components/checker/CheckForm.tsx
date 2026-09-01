@@ -11,16 +11,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCompactUsd, formatSol, isValidSolanaAddress, parseCompactNumber } from "@/lib/profit";
-import type { AmountUnit } from "@/hooks/useProfitChecker";
+import type { AmountUnit, MarketCapUnit } from "@/hooks/useProfitChecker";
 
 const QUICK_MCS: { label: string; value: string }[] = [
-  { label: "$10K", value: "10K" },
-  { label: "$25K", value: "25K" },
-  { label: "$50K", value: "50K" },
-  { label: "$100K", value: "100K" },
-  { label: "$250K", value: "250K" },
-  { label: "$500K", value: "500K" },
-  { label: "$1M", value: "1M" },
+  { label: "$10K", value: "10", unit: "K" },
+  { label: "$25K", value: "25", unit: "K" },
+  { label: "$50K", value: "50", unit: "K" },
+  { label: "$100K", value: "100", unit: "K" },
+  { label: "$250K", value: "250", unit: "K" },
+  { label: "$500K", value: "500", unit: "K" },
+  { label: "$1M", value: "1", unit: "M" },
 ];
 
 type Props = {
@@ -32,8 +32,14 @@ type Props = {
   setAmountUnit: (v: AmountUnit) => void;
   buyMcInput: string;
   setBuyMcInput: (v: string) => void;
+  buyMcUnit: MarketCapUnit;
+  setBuyMcUnit: (v: MarketCapUnit) => void;
   customTarget: string;
   setCustomTarget: (v: string) => void;
+  priorityFee: string;
+  setPriorityFee: (v: string) => void;
+  bribeFee: string;
+  setBribeFee: (v: string) => void;
   buyMarketCap: number | null;
   solInvested: number | null;
   solPrice: number | null;
@@ -52,8 +58,14 @@ export function CheckForm({
   setAmountUnit,
   buyMcInput,
   setBuyMcInput,
+  buyMcUnit,
+  setBuyMcUnit,
   customTarget,
   setCustomTarget,
+  priorityFee,
+  setPriorityFee,
+  bribeFee,
+  setBribeFee,
   buyMarketCap,
   solInvested,
   solPrice,
@@ -140,15 +152,27 @@ export function CheckForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="buymc">Buy Market Cap</Label>
-            <Input
-              id="buymc"
-              value={buyMcInput}
-              onChange={(e) => setBuyMcInput(e.target.value)}
-              placeholder="53K"
-              className="num h-11"
-            />
+             <div className="flex gap-2">
+               <Input
+                 id="buymc"
+                 value={buyMcInput}
+                 onChange={(e) => setBuyMcInput(e.target.value)}
+                 placeholder="53"
+                 className="num h-11 flex-1"
+               />
+               <Select value={buyMcUnit} onValueChange={(v) => setBuyMcUnit(v as MarketCapUnit)}>
+                 <SelectTrigger className="h-11 w-[78px]">
+                   <SelectValue />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="K">K</SelectItem>
+                   <SelectItem value="M">M</SelectItem>
+                   <SelectItem value="B">B</SelectItem>
+                 </SelectContent>
+               </Select>
+             </div>
             <p className="num text-[11px] text-muted-foreground">
-              {buyMarketCap ? `= ${formatCompactUsd(buyMarketCap)}` : "Accepts 53K, 52.7K, 1.2M"}
+               {buyMarketCap ? `= ${formatCompactUsd(buyMarketCap)}` : "Choose K, M or B"}
             </p>
           </div>
 
@@ -172,12 +196,42 @@ export function CheckForm({
             <button
               key={q.value}
               type="button"
-              onClick={() => setBuyMcInput(q.value)}
+               onClick={() => {
+                 setBuyMcInput(q.value);
+                 setBuyMcUnit(q.unit as MarketCapUnit);
+               }}
               className="num rounded-full border border-border bg-secondary/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-brand/60 hover:text-foreground"
             >
               {q.label}
             </button>
           ))}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="priority-fee">Priority Fee (SOL)</Label>
+            <Input
+              id="priority-fee"
+              inputMode="decimal"
+              value={priorityFee}
+              onChange={(e) => setPriorityFee(e.target.value)}
+              placeholder="0.00"
+              className="num h-11"
+            />
+            <p className="num text-[11px] text-muted-foreground">Optional network fee</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="bribe-fee">Bribe Fee (SOL)</Label>
+            <Input
+              id="bribe-fee"
+              inputMode="decimal"
+              value={bribeFee}
+              onChange={(e) => setBribeFee(e.target.value)}
+              placeholder="0.00"
+              className="num h-11"
+            />
+            <p className="num text-[11px] text-muted-foreground">Optional validator / tip fee</p>
+          </div>
         </div>
 
         <Button type="submit" size="lg" disabled={loading} className="h-12 w-full text-sm">

@@ -98,8 +98,14 @@ function Index() {
             setAmountUnit={c.setAmountUnit}
             buyMcInput={c.buyMcInput}
             setBuyMcInput={c.setBuyMcInput}
+            buyMcUnit={c.buyMcUnit}
+            setBuyMcUnit={c.setBuyMcUnit}
             customTarget={c.customTarget}
             setCustomTarget={c.setCustomTarget}
+            priorityFee={c.priorityFee}
+            setPriorityFee={c.setPriorityFee}
+            bribeFee={c.bribeFee}
+            setBribeFee={c.setBribeFee}
             buyMarketCap={c.buyMarketCap}
             solInvested={c.solInvested}
             solPrice={c.solPrice}
@@ -123,6 +129,10 @@ function Index() {
               buyMarketCap={c.buyMarketCap}
               marketCapMetric={c.token.marketCapMetric}
               usdInr={c.usdInr}
+              fxRates={c.fxRates}
+              displayCurrency={c.displayCurrency}
+              setDisplayCurrency={c.setDisplayCurrency}
+              feeSol={c.feeSol}
               refreshInterval={c.refreshInterval}
               setRefreshInterval={c.setRefreshInterval}
               refreshing={c.refreshing}

@@ -15,12 +15,14 @@ import {
   DEFAULT_TARGETS,
   isValidSolanaAddress,
   parseCompactNumber,
+  type ProfitInput,
   type ProfitResult,
   type TargetRow,
 } from "@/lib/profit";
 import { clearHistory, loadHistory, saveHistoryEntry, type HistoryEntry } from "@/lib/history";
 
 export type AmountUnit = "SOL" | "USD";
+export type MarketCapUnit = "K" | "M" | "B";
 export type RefreshOption = 0 | 15 | 30 | 60 | 300;
 
 const CACHE_TTL = 8_000;
@@ -35,11 +37,16 @@ export function useProfitChecker() {
   const [amount, setAmount] = useState("");
   const [amountUnit, setAmountUnit] = useState<AmountUnit>("SOL");
   const [buyMcInput, setBuyMcInput] = useState("");
+  const [buyMcUnit, setBuyMcUnit] = useState<MarketCapUnit>("K");
   const [customTarget, setCustomTarget] = useState("");
+  const [priorityFee, setPriorityFee] = useState("");
+  const [bribeFee, setBribeFee] = useState("");
 
   const [token, setToken] = useState<TokenData | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(null);
   const [usdInr, setUsdInr] = useState<number | null>(null);
+  const [fxRates, setFxRates] = useState<Record<string, number>>({ USD: 1 });
+  const [displayCurrency, setDisplayCurrency] = useState("INR");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,14 +70,21 @@ export function useProfitChecker() {
       const [sol, fx] = await Promise.all([fetchSol({}), fetchFx({})]);
       if (cancelled) return;
       if (sol.ok) setSolPrice(sol.priceUsd);
-      if (fx.ok) setUsdInr(fx.usdInr);
+      if (fx.ok) {
+        setUsdInr(fx.usdInr);
+        setFxRates(fx.rates);
+        fxFetchedAt.current = Date.now();
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [fetchSol, fetchFx]);
 
-  const buyMarketCap = useMemo(() => parseCompactNumber(buyMcInput), [buyMcInput]);
+  const buyMarketCap = useMemo(
+    () => parseCompactNumber(`${buyMcInput}${buyMcUnit}`),
+    [buyMcInput, buyMcUnit],
+  );
   const amountValue = useMemo(() => {
     const n = Number.parseFloat(amount.replace(/,/g, ""));
     return Number.isFinite(n) && n > 0 ? n : null;
@@ -83,19 +97,25 @@ export function useProfitChecker() {
     return amountValue / solPrice;
   }, [amountValue, amountUnit, solPrice]);
 
+  const parseFee = (raw: string) => {
+    const value = Number.parseFloat(raw.replace(/,/g, ""));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  };
+  const feeSol = useMemo(() => parseFee(priorityFee) + parseFee(bribeFee), [priorityFee, bribeFee]);
+
   const currentMarketCap = token ? (token.marketCap ?? token.fdv ?? null) : null;
 
   const result: ProfitResult | null = useMemo(() => {
     if (!solInvested || !buyMarketCap || !currentMarketCap || !solPrice) return null;
-    return calculateProfit({ solInvested, buyMarketCap, currentMarketCap, solPriceUsd: solPrice });
-  }, [solInvested, buyMarketCap, currentMarketCap, solPrice]);
+    return calculateProfit({ solInvested, buyMarketCap, currentMarketCap, solPriceUsd: solPrice, feeSol });
+  }, [solInvested, buyMarketCap, currentMarketCap, solPrice, feeSol]);
 
   const targets: TargetRow[] = useMemo(() => {
     if (!solInvested || !buyMarketCap || !solPrice) return [];
     return DEFAULT_TARGETS.map((t) =>
-      calculateTargetValue(t, { solInvested, buyMarketCap, solPriceUsd: solPrice }),
+      calculateTargetValue(t, { solInvested, buyMarketCap, solPriceUsd: solPrice, feeSol }),
     );
-  }, [solInvested, buyMarketCap, solPrice]);
+  }, [solInvested, buyMarketCap, solPrice, feeSol]);
 
   const customTargetMc = useMemo(() => parseCompactNumber(customTarget), [customTarget]);
   const customTargetRow: TargetRow | null = useMemo(() => {
@@ -104,8 +124,9 @@ export function useProfitChecker() {
       solInvested,
       buyMarketCap,
       solPriceUsd: solPrice,
+      feeSol,
     });
-  }, [customTargetMc, solInvested, buyMarketCap, solPrice]);
+  }, [customTargetMc, solInvested, buyMarketCap, solPrice, feeSol]);
 
   const runFetch = useCallback(
     async (mode: "check" | "refresh" | "auto") => {
@@ -153,6 +174,7 @@ export function useProfitChecker() {
         }
         if (fxRes?.ok) {
           setUsdInr(fxRes.usdInr);
+          setFxRates(fxRes.rates);
           fxFetchedAt.current = Date.now();
         }
         if (solRes.ok) setSolPrice(solRes.priceUsd);
@@ -178,7 +200,7 @@ export function useProfitChecker() {
         }
       }
     },
-    [ca, amountValue, buyMarketCap, token, usdInr, fetchToken, fetchSol, fetchFx],
+    [ca, amountValue, buyMarketCap, token, usdInr, fxRates, fetchToken, fetchSol, fetchFx],
   );
 
   // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
@@ -254,14 +276,17 @@ export function useProfitChecker() {
 
   /** Populate the calculator from a detected wallet BUY. */
   const trackTrade = useCallback((trade: WalletTrade) => {
+    const entryMarketCap = trade.marketCap && trade.currentPriceUsd && trade.entryPriceUsd
+      ? trade.marketCap * (trade.entryPriceUsd / trade.currentPriceUsd)
+      : trade.marketCap;
     setCa(trade.mint);
     setAmountUnit("SOL");
     setAmount(trade.solAmount.toFixed(4));
-    if (trade.marketCap && trade.currentPriceUsd && trade.entryPriceUsd) {
-      const entryMc = trade.marketCap * (trade.entryPriceUsd / trade.currentPriceUsd);
-      setBuyMcInput(Math.round(entryMc).toString());
-    } else if (trade.marketCap) {
-      setBuyMcInput(Math.round(trade.marketCap).toString());
+    if (entryMarketCap) {
+      const unit: MarketCapUnit = entryMarketCap >= 1e9 ? "B" : entryMarketCap >= 1e6 ? "M" : "K";
+      const divisor = unit === "B" ? 1e9 : unit === "M" ? 1e6 : 1e3;
+      setBuyMcUnit(unit);
+      setBuyMcInput((entryMarketCap / divisor).toFixed(2).replace(/\.00$/, ""));
     }
     toast.success(`Tracking ${trade.symbol} position`);
     lastFetch.current = { ca: "", at: 0 };
@@ -288,11 +313,21 @@ export function useProfitChecker() {
     setAmountUnit,
     buyMcInput,
     setBuyMcInput,
+    buyMcUnit,
+    setBuyMcUnit,
     customTarget,
     setCustomTarget,
+    priorityFee,
+    setPriorityFee,
+    bribeFee,
+    setBribeFee,
+    feeSol,
     token,
     solPrice,
     usdInr,
+    fxRates,
+    displayCurrency,
+    setDisplayCurrency,
     loading,
     refreshing,
     error,

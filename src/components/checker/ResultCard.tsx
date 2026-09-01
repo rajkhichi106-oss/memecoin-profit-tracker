@@ -11,6 +11,8 @@ import {
 import { cn } from "@/lib/utils";
 import {
   formatCompactUsd,
+  CURRENCY_CODES,
+  formatCurrency,
   formatInr,
   formatPercent,
   formatSol,
@@ -26,6 +28,10 @@ type Props = {
   buyMarketCap: number;
   marketCapMetric: "marketCap" | "fdv" | "none";
   usdInr: number | null;
+  fxRates: Record<string, number>;
+  displayCurrency: string;
+  setDisplayCurrency: (v: string) => void;
+  feeSol: number;
   refreshInterval: RefreshOption;
   setRefreshInterval: (v: RefreshOption) => void;
   refreshing: boolean;
@@ -68,6 +74,10 @@ export function ResultCard({
   buyMarketCap,
   marketCapMetric,
   usdInr,
+  fxRates,
+  displayCurrency,
+  setDisplayCurrency,
+  feeSol,
   refreshInterval,
   setRefreshInterval,
   refreshing,
@@ -80,6 +90,9 @@ export function ResultCard({
   const inr = (usd: number) => (usdInr ? usd * usdInr : null);
   const profitInr = inr(result.profitUsd);
   const valueInr = inr(result.currentUsd);
+  const currencyOptions = [...new Set([...CURRENCY_CODES, ...Object.keys(fxRates)])].filter(
+    (code) => code === "USD" || !!fxRates[code],
+  );
 
   return (
     <section className="glass relative overflow-hidden rounded-2xl p-4 sm:p-5" data-tick={tick}>
@@ -107,7 +120,7 @@ export function ResultCard({
 
         <div className="mt-3">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Profit / Loss (INR)
+             Profit / Loss ({displayCurrency})
           </p>
           <p
             className={cn(
@@ -115,7 +128,7 @@ export function ResultCard({
               up ? "text-profit" : "text-loss",
             )}
           >
-            {profitInr !== null ? formatInr(profitInr, { sign: true }) : "—"}
+             {formatCurrency(result.profitUsd, displayCurrency, fxRates, { sign: true })}
           </p>
           <p className="num mt-1 text-sm text-muted-foreground">
             {formatUsd(result.profitUsd, { sign: true })} USD •{" "}
@@ -126,7 +139,7 @@ export function ResultCard({
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Stat
             label="Current Value"
-            value={valueInr !== null ? formatInr(valueInr) : formatUsd(result.currentUsd)}
+             value={formatCurrency(result.currentUsd, displayCurrency, fxRates)}
             sub={`${formatUsd(result.currentUsd)} USD`}
           />
           <Stat
@@ -145,6 +158,16 @@ export function ResultCard({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Select value={displayCurrency} onValueChange={setDisplayCurrency}>
+            <SelectTrigger className="h-9 w-[118px] text-xs" aria-label="Display currency">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {currencyOptions.map((code) => (
+                <SelectItem key={code} value={code}>{code}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             value={String(refreshInterval)}
             onValueChange={(v) => setRefreshInterval(Number(v) as RefreshOption)}
@@ -175,8 +198,9 @@ export function ResultCard({
           Estimated from your manually entered SOL amount and entry market cap combined with live
           DEX Screener market data — not a live sell quote and not connected to any wallet or
           exchange account. Invested{" "}
-          {formatUsd(result.initialUsd)}
-          {usdInr ? ` (${formatInr(result.initialUsd * usdInr)})` : ""}.
+           {formatUsd(result.initialUsd)}
+           {usdInr ? ` (${formatInr(result.initialUsd * usdInr)})` : ""}.
+           {feeSol > 0 ? ` Includes ${formatSol(feeSol)} in fees.` : ""}
         </p>
       </div>
     </section>
