@@ -53,7 +53,7 @@ function Index() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+    <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
       <header className="text-center">
         <span className="num inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1 text-[11px] text-muted-foreground">
           Solana • Live market data • INR profit • No login
@@ -86,9 +86,9 @@ function Index() {
         </div>
       </header>
 
-      <div className="mt-8 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-        {/* Left: trade inputs */}
-        <div className="space-y-4">
+      <div className="mt-8 grid items-start gap-5 lg:grid-cols-[minmax(0,1.04fr)_minmax(420px,0.96fr)]">
+        {/* Left: trade inputs and supporting tools */}
+        <div className="space-y-5">
           <CheckForm
             ca={c.ca}
             setCa={c.setCa}
@@ -108,11 +108,14 @@ function Index() {
             onCheck={c.check}
             onPaste={() => void c.pasteFromClipboard()}
           />
-
+          <WalletTracker usdInr={c.usdInr} onTrack={c.trackTrade} tick={tick} />
+          {c.targets.length > 0 && c.buyMarketCap ? (
+            <PotentialChart buyMarketCap={c.buyMarketCap} targets={c.targets} />
+          ) : null}
         </div>
 
         {/* Right: live position + live DEX Screener market data (sticky on desktop) */}
-        <div className="space-y-4 lg:sticky lg:top-4">
+        <div className="space-y-5 lg:sticky lg:top-5">
           {c.result && c.currentMarketCap && c.buyMarketCap && c.token ? (
             <ResultCard
               result={c.result}
@@ -162,16 +165,9 @@ function Index() {
 
       </div>
 
-      <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
-        <WalletTracker usdInr={c.usdInr} onTrack={c.trackTrade} tick={tick} />
-
-        <div className="space-y-4">
-          {c.targets.length > 0 && c.buyMarketCap ? (
-            <PotentialChart buyMarketCap={c.buyMarketCap} targets={c.targets} />
-          ) : null}
-          {c.token ? <TokenAnalysis token={c.token} /> : null}
-          <RecentChecks history={c.history} onClear={c.clearAllHistory} tick={tick} />
-        </div>
+      <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
+        {c.token ? <TokenAnalysis token={c.token} /> : <div />}
+        <RecentChecks history={c.history} onClear={c.clearAllHistory} tick={tick} />
       </div>
 
       <section className="mt-4 rounded-xl border border-chart-4/35 bg-chart-4/10 p-4 text-[11px] leading-relaxed text-muted-foreground">
