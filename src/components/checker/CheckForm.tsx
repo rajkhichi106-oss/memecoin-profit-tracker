@@ -13,7 +13,7 @@ import {
 import { formatCompactUsd, formatSol, isValidSolanaAddress, parseCompactNumber } from "@/lib/profit";
 import type { AmountUnit, MarketCapUnit } from "@/hooks/useProfitChecker";
 
-const QUICK_MCS: { label: string; value: string }[] = [
+const QUICK_MCS: { label: string; value: string; unit: MarketCapUnit }[] = [
   { label: "$10K", value: "10", unit: "K" },
   { label: "$25K", value: "25", unit: "K" },
   { label: "$50K", value: "50", unit: "K" },
