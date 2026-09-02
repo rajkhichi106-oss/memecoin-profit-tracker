@@ -105,7 +105,13 @@ export function CheckForm({
               autoComplete="off"
               className="num h-11 flex-1 text-sm"
             />
-            <Button type="button" variant="secondary" className="h-11 px-3" onClick={onPaste}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-11 px-3"
+              onClick={onPaste}
+              aria-label="Paste Solana contract address"
+            >
               <ClipboardPaste className="size-4" />
               <span className="hidden sm:inline">Paste</span>
             </Button>
