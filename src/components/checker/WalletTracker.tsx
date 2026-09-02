@@ -112,7 +112,13 @@ export function WalletTracker({ usdInr, onTrack, tick }: Props) {
             autoComplete="off"
             className="num h-11 flex-1 text-sm"
           />
-          <Button type="button" className="h-11" onClick={start} disabled={loading}>
+          <Button
+            type="button"
+            className="h-11"
+            onClick={start}
+            disabled={loading}
+            aria-label="Track public Solana wallet"
+          >
             {loading && !active ? <Loader2 className="size-4 animate-spin" /> : null}
             Track
           </Button>
