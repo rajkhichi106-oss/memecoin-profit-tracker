@@ -170,9 +170,9 @@ export function useProfitChecker() {
         const pinned = pinnedPair.current.ca === address ? pinnedPair.current.pairAddress : "";
         const needFx = !usdInr || Date.now() - fxFetchedAt.current > FX_TTL;
         const [tokenRes, solRes, fxRes] = await Promise.all([
-          fetchToken({ data: { ca: address, pairAddress: pinned } }),
-          fetchSol({}),
-          needFx ? fetchFx({}) : Promise.resolve(null),
+          getTokenData({ data: { ca: address, pairAddress: pinned } }),
+          getSolPrice({}),
+          needFx ? getFxRate({}) : Promise.resolve(null),
         ]);
         if (stale()) return;
 
@@ -208,7 +208,7 @@ export function useProfitChecker() {
         }
       }
     },
-    [ca, amountValue, buyMarketCap, token, usdInr, getTokenData, getSolPrice, getFxRate, fees],
+    [ca, amountValue, buyMarketCap, token, usdInr],
   );
 
   // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
