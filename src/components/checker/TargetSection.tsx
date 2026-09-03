@@ -12,9 +12,10 @@ type Props = {
   targets: TargetRow[];
   customTargetRow: TargetRow | null;
   usdInr: number | null;
+  feeSol: number;
 };
 
-export function TargetSection({ targets, customTargetRow, usdInr }: Props) {
+export function TargetSection({ targets, customTargetRow, usdInr, feeSol }: Props) {
   const money = (usd: number, sign?: boolean) =>
     usdInr ? formatInr(usd * usdInr, { sign: !!sign }) : formatUsd(usd, { sign: !!sign });
 
@@ -22,7 +23,8 @@ export function TargetSection({ targets, customTargetRow, usdInr }: Props) {
     <section className="glass rounded-2xl p-4 sm:p-5">
       <h2 className="text-base font-semibold sm:text-lg">What If It Reaches...</h2>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        Estimated position value at higher market caps, based on your buy market cap.
+        Estimated position value and net profit (after all buy + sell fees) at higher market caps,
+        based on your buy market cap.
       </p>
 
       {customTargetRow ? (
@@ -37,8 +39,11 @@ export function TargetSection({ targets, customTargetRow, usdInr }: Props) {
               customTargetRow.profitUsd >= 0 ? "text-profit" : "text-loss",
             )}
           >
-            {money(customTargetRow.profitUsd, true)} • {formatUsd(customTargetRow.profitUsd, { sign: true })} •{" "}
-            {formatPercent(customTargetRow.roiPercent)} • {formatSol(customTargetRow.currentSol)}
+            Net profit {money(customTargetRow.profitUsd, true)} • {formatUsd(customTargetRow.profitUsd, { sign: true })} •{" "}
+            {formatSol(customTargetRow.profitSol, { sign: true })} • {formatPercent(customTargetRow.roiPercent)}
+          </p>
+          <p className="num mt-1 text-[11px] text-muted-foreground">
+            Position value {formatSol(customTargetRow.currentSol)} • fees {formatSol(feeSol)}
           </p>
         </div>
       ) : null}

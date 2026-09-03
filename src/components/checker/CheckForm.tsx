@@ -36,10 +36,14 @@ type Props = {
   setBuyMcUnit: (v: MarketCapUnit) => void;
   customTarget: string;
   setCustomTarget: (v: string) => void;
-  priorityFee: string;
-  setPriorityFee: (v: string) => void;
-  bribeFee: string;
-  setBribeFee: (v: string) => void;
+  buyPriorityFee: string;
+  setBuyPriorityFee: (v: string) => void;
+  buyBribeFee: string;
+  setBuyBribeFee: (v: string) => void;
+  sellPriorityFee: string;
+  setSellPriorityFee: (v: string) => void;
+  sellBribeFee: string;
+  setSellBribeFee: (v: string) => void;
   buyMarketCap: number | null;
   solInvested: number | null;
   solPrice: number | null;
@@ -62,10 +66,14 @@ export function CheckForm({
   setBuyMcUnit,
   customTarget,
   setCustomTarget,
-  priorityFee,
-  setPriorityFee,
-  bribeFee,
-  setBribeFee,
+  buyPriorityFee,
+  setBuyPriorityFee,
+  buyBribeFee,
+  setBuyBribeFee,
+  sellPriorityFee,
+  setSellPriorityFee,
+  sellBribeFee,
+  setSellBribeFee,
   buyMarketCap,
   solInvested,
   solPrice,
@@ -215,24 +223,48 @@ export function CheckForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="priority-fee">Priority Fee (SOL)</Label>
+            <Label htmlFor="buy-priority-fee">Buy Priority Fee (SOL)</Label>
             <Input
-              id="priority-fee"
+              id="buy-priority-fee"
               inputMode="decimal"
-              value={priorityFee}
-              onChange={(e) => setPriorityFee(e.target.value)}
+              value={buyPriorityFee}
+              onChange={(e) => setBuyPriorityFee(e.target.value)}
               placeholder="0.00"
               className="num h-11"
             />
             <p className="num text-[11px] text-muted-foreground">Optional network fee</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="bribe-fee">Bribe Fee (SOL)</Label>
+            <Label htmlFor="buy-bribe-fee">Buy Bribe Fee (SOL)</Label>
             <Input
-              id="bribe-fee"
+              id="buy-bribe-fee"
               inputMode="decimal"
-              value={bribeFee}
-              onChange={(e) => setBribeFee(e.target.value)}
+              value={buyBribeFee}
+              onChange={(e) => setBuyBribeFee(e.target.value)}
+              placeholder="0.00"
+              className="num h-11"
+            />
+            <p className="num text-[11px] text-muted-foreground">Optional validator / tip fee</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sell-priority-fee">Sell Priority Fee (SOL)</Label>
+            <Input
+              id="sell-priority-fee"
+              inputMode="decimal"
+              value={sellPriorityFee}
+              onChange={(e) => setSellPriorityFee(e.target.value)}
+              placeholder="0.00"
+              className="num h-11"
+            />
+            <p className="num text-[11px] text-muted-foreground">Optional network fee</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sell-bribe-fee">Sell Bribe Fee (SOL)</Label>
+            <Input
+              id="sell-bribe-fee"
+              inputMode="decimal"
+              value={sellBribeFee}
+              onChange={(e) => setSellBribeFee(e.target.value)}
               placeholder="0.00"
               className="num h-11"
             />

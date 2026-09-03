@@ -89,7 +89,6 @@ export function ResultCard({
   const tone = up ? "profit" : "loss";
   const inr = (usd: number) => (usdInr ? usd * usdInr : null);
   const profitInr = inr(result.profitUsd);
-  const valueInr = inr(result.currentUsd);
   const currencyOptions = [...new Set([...CURRENCY_CODES, ...Object.keys(fxRates)])].filter(
     (code) => code === "USD" || !!fxRates[code],
   );
@@ -120,7 +119,7 @@ export function ResultCard({
 
         <div className="mt-3">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-             Profit / Loss ({displayCurrency})
+             Active Net Profit — after fees ({displayCurrency})
           </p>
           <p
             className={cn(
@@ -133,19 +132,22 @@ export function ResultCard({
           <p className="num mt-1 text-sm text-muted-foreground">
             {formatUsd(result.profitUsd, { sign: true })} USD •{" "}
             {formatSol(result.profitSol, { sign: true })}
+            {profitInr !== null && displayCurrency !== "INR"
+              ? ` • ${formatInr(profitInr, { sign: true })}`
+              : ""}
           </p>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Stat
-            label="Current Value"
+            label="Current Position Value"
              value={formatCurrency(result.currentUsd, displayCurrency, fxRates)}
-            sub={`${formatUsd(result.currentUsd)} USD`}
+            sub={`${formatUsd(result.currentUsd)} USD • ${formatSol(result.currentSol)}`}
           />
           <Stat
-            label="Position in SOL"
-            value={formatSol(result.currentSol)}
-            sub={`entry ${formatSol(result.currentSol - result.profitSol)}`}
+            label="Total Fees"
+            value={formatSol(result.totalFeesSol)}
+            sub="buy + sell, fixed"
           />
 
           <Stat label="ROI" value={formatPercent(result.roiPercent)} tone={tone} />

@@ -13,11 +13,13 @@ import {
   calculateProfit,
   calculateTargetValue,
   DEFAULT_TARGETS,
+  formatCompactUsd,
   isValidSolanaAddress,
   parseCompactNumber,
-  type ProfitInput,
+  sumFees,
   type ProfitResult,
   type TargetRow,
+  type TradeFees,
 } from "@/lib/profit";
 import { clearHistory, loadHistory, saveHistoryEntry, type HistoryEntry } from "@/lib/history";
 
@@ -39,8 +41,10 @@ export function useProfitChecker() {
   const [buyMcInput, setBuyMcInput] = useState("");
   const [buyMcUnit, setBuyMcUnit] = useState<MarketCapUnit>("K");
   const [customTarget, setCustomTarget] = useState("");
-  const [priorityFee, setPriorityFee] = useState("");
-  const [bribeFee, setBribeFee] = useState("");
+  const [buyPriorityFee, setBuyPriorityFee] = useState("");
+  const [buyBribeFee, setBuyBribeFee] = useState("");
+  const [sellPriorityFee, setSellPriorityFee] = useState("");
+  const [sellBribeFee, setSellBribeFee] = useState("");
 
   const [token, setToken] = useState<TokenData | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(null);
@@ -101,21 +105,30 @@ export function useProfitChecker() {
     const value = Number.parseFloat(raw.replace(/,/g, ""));
     return Number.isFinite(value) && value > 0 ? value : 0;
   };
-  const feeSol = useMemo(() => parseFee(priorityFee) + parseFee(bribeFee), [priorityFee, bribeFee]);
+  const fees: TradeFees = useMemo(
+    () => ({
+      buyPriority: parseFee(buyPriorityFee),
+      buyBribe: parseFee(buyBribeFee),
+      sellPriority: parseFee(sellPriorityFee),
+      sellBribe: parseFee(sellBribeFee),
+    }),
+    [buyPriorityFee, buyBribeFee, sellPriorityFee, sellBribeFee],
+  );
+  const feeSol = useMemo(() => sumFees(fees), [fees]);
 
   const currentMarketCap = token ? (token.marketCap ?? token.fdv ?? null) : null;
 
   const result: ProfitResult | null = useMemo(() => {
     if (!solInvested || !buyMarketCap || !currentMarketCap || !solPrice) return null;
-    return calculateProfit({ solInvested, buyMarketCap, currentMarketCap, solPriceUsd: solPrice, feeSol });
-  }, [solInvested, buyMarketCap, currentMarketCap, solPrice, feeSol]);
+    return calculateProfit({ solInvested, buyMarketCap, currentMarketCap, solPriceUsd: solPrice, fees });
+  }, [solInvested, buyMarketCap, currentMarketCap, solPrice, fees]);
 
   const targets: TargetRow[] = useMemo(() => {
     if (!solInvested || !buyMarketCap || !solPrice) return [];
     return DEFAULT_TARGETS.map((t) =>
-      calculateTargetValue(t, { solInvested, buyMarketCap, solPriceUsd: solPrice, feeSol }),
+      calculateTargetValue(t, { solInvested, buyMarketCap, solPriceUsd: solPrice, fees }),
     );
-  }, [solInvested, buyMarketCap, solPrice, feeSol]);
+  }, [solInvested, buyMarketCap, solPrice, fees]);
 
   const customTargetMc = useMemo(() => parseCompactNumber(customTarget), [customTarget]);
   const customTargetRow: TargetRow | null = useMemo(() => {
@@ -124,9 +137,9 @@ export function useProfitChecker() {
       solInvested,
       buyMarketCap,
       solPriceUsd: solPrice,
-      feeSol,
+      fees,
     });
-  }, [customTargetMc, solInvested, buyMarketCap, solPrice, feeSol]);
+  }, [customTargetMc, solInvested, buyMarketCap, solPrice, fees]);
 
   const runFetch = useCallback(
     async (mode: "check" | "refresh" | "auto") => {
@@ -256,6 +269,14 @@ export function useProfitChecker() {
     return () => window.clearInterval(id);
   }, [refreshInterval, token, runFetch]);
 
+  // Dynamic browser tab title: "Coin ↓ $Price", only when token or price changes.
+  const titleName = token?.name?.trim() || token?.symbol?.trim() || "";
+  const titlePrice = token?.priceUsd ?? null;
+  useEffect(() => {
+    if (!titleName || !titlePrice) return;
+    document.title = `${titleName} ↓ ${formatCompactUsd(titlePrice)}`;
+  }, [titleName, titlePrice]);
+
   const pasteFromClipboard = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -317,10 +338,15 @@ export function useProfitChecker() {
     setBuyMcUnit,
     customTarget,
     setCustomTarget,
-    priorityFee,
-    setPriorityFee,
-    bribeFee,
-    setBribeFee,
+    buyPriorityFee,
+    setBuyPriorityFee,
+    buyBribeFee,
+    setBuyBribeFee,
+    sellPriorityFee,
+    setSellPriorityFee,
+    sellBribeFee,
+    setSellBribeFee,
+    fees,
     feeSol,
     token,
     solPrice,
