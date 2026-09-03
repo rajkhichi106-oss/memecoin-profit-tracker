@@ -104,10 +104,14 @@ function Index() {
             setBuyMcUnit={c.setBuyMcUnit}
             customTarget={c.customTarget}
             setCustomTarget={c.setCustomTarget}
-            priorityFee={c.priorityFee}
-            setPriorityFee={c.setPriorityFee}
-            bribeFee={c.bribeFee}
-            setBribeFee={c.setBribeFee}
+            buyPriorityFee={c.buyPriorityFee}
+            setBuyPriorityFee={c.setBuyPriorityFee}
+            buyBribeFee={c.buyBribeFee}
+            setBuyBribeFee={c.setBuyBribeFee}
+            sellPriorityFee={c.sellPriorityFee}
+            setSellPriorityFee={c.setSellPriorityFee}
+            sellBribeFee={c.sellBribeFee}
+            setSellBribeFee={c.setSellBribeFee}
             buyMarketCap={c.buyMarketCap}
             solInvested={c.solInvested}
             solPrice={c.solPrice}
@@ -171,6 +175,7 @@ function Index() {
               targets={c.targets}
               customTargetRow={c.customTargetRow}
               usdInr={c.usdInr}
+              feeSol={c.feeSol}
             />
           ) : null}
         </div>
