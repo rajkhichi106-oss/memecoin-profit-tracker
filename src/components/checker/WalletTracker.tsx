@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { ArrowDownRight, ArrowUpRight, ExternalLink, Loader2, RefreshCw, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,6 @@ type Props = {
 };
 
 export function WalletTracker({ usdInr, onTrack, tick }: Props) {
-  const fetchTrades = useServerFn(getWalletTrades);
   const [wallet, setWallet] = useState("");
   const [active, setActive] = useState("");
   const [trades, setTrades] = useState<WalletTrade[]>([]);
@@ -47,7 +45,7 @@ export function WalletTracker({ usdInr, onTrack, tick }: Props) {
       setLoading(true);
       setError(null);
       try {
-         const res = await fetchTrades({ data: { wallet: address, limit: 20 } });
+        const res = await getWalletTrades({ data: { wallet: address, limit: 20 } });
         if (!res.ok) {
           setError(res.error);
           return;
@@ -63,7 +61,7 @@ export function WalletTracker({ usdInr, onTrack, tick }: Props) {
         setLoading(false);
       }
     },
-    [fetchTrades],
+    [],
   );
 
   const start = () => {

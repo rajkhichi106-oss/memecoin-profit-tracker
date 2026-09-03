@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import {
@@ -31,10 +30,6 @@ const CACHE_TTL = 8_000;
 const FX_TTL = 300_000;
 
 export function useProfitChecker() {
-  const fetchToken = useServerFn(getTokenData);
-  const fetchSol = useServerFn(getSolPrice);
-  const fetchFx = useServerFn(getFxRate);
-
   const [ca, setCa] = useState("");
   const [amount, setAmount] = useState("");
   const [amountUnit, setAmountUnit] = useState<AmountUnit>("SOL");
@@ -71,7 +66,7 @@ export function useProfitChecker() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [sol, fx] = await Promise.all([fetchSol({}), fetchFx({})]);
+      const [sol, fx] = await Promise.all([getSolPrice({}), getFxRate({})]);
       if (cancelled) return;
       if (sol.ok) setSolPrice(sol.priceUsd);
       if (fx.ok) {
@@ -83,7 +78,7 @@ export function useProfitChecker() {
     return () => {
       cancelled = true;
     };
-  }, [fetchSol, fetchFx]);
+  }, []);
 
   const buyMarketCap = useMemo(
     () => parseCompactNumber(`${buyMcInput}${buyMcUnit}`),
@@ -175,9 +170,9 @@ export function useProfitChecker() {
         const pinned = pinnedPair.current.ca === address ? pinnedPair.current.pairAddress : "";
         const needFx = !usdInr || Date.now() - fxFetchedAt.current > FX_TTL;
         const [tokenRes, solRes, fxRes] = await Promise.all([
-          fetchToken({ data: { ca: address, pairAddress: pinned } }),
-          fetchSol({}),
-          needFx ? fetchFx({}) : Promise.resolve(null),
+          getTokenData({ data: { ca: address, pairAddress: pinned } }),
+          getSolPrice({}),
+          needFx ? getFxRate({}) : Promise.resolve(null),
         ]);
         if (stale()) return;
 
@@ -213,7 +208,7 @@ export function useProfitChecker() {
         }
       }
     },
-    [ca, amountValue, buyMarketCap, token, usdInr, fxRates, fetchToken, fetchSol, fetchFx],
+    [ca, amountValue, buyMarketCap, token, usdInr],
   );
 
   // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
