@@ -78,12 +78,27 @@ export function formatAge(createdAt: number | null): string {
   return `${days}d ${hours % 24}h`;
 }
 
+/** Fixed SOL fees for a round trip. Fees never scale with market cap growth. */
+export type TradeFees = {
+  buyPriority: number;
+  buyBribe: number;
+  sellPriority: number;
+  sellBribe: number;
+};
+
+export const ZERO_FEES: TradeFees = { buyPriority: 0, buyBribe: 0, sellPriority: 0, sellBribe: 0 };
+
+/** Total fixed fees = buy priority + buy bribe + sell priority + sell bribe. */
+export function sumFees(fees: TradeFees): number {
+  return fees.buyPriority + fees.buyBribe + fees.sellPriority + fees.sellBribe;
+}
+
 export type ProfitInput = {
   solInvested: number;
   buyMarketCap: number;
   currentMarketCap: number;
   solPriceUsd: number;
-  feeSol?: number;
+  fees?: TradeFees;
 };
 
 export type ProfitResult = {
@@ -94,28 +109,40 @@ export type ProfitResult = {
   profitUsd: number;
   profitSol: number;
   roiPercent: number;
+  totalFeesSol: number;
 };
 
+/**
+ * Single source of truth for Live Position and Expected Market Cap math:
+ *   position value = invested SOL × (current MC / entry MC)
+ *   net profit     = position value − invested SOL − total fixed fees
+ *   ROI %          = net profit / (invested SOL + buy fees) × 100
+ */
 export function calculateProfit({
   solInvested,
   buyMarketCap,
   currentMarketCap,
   solPriceUsd,
-  feeSol = 0,
+  fees = ZERO_FEES,
 }: ProfitInput): ProfitResult {
-  const initialUsd = (solInvested + feeSol) * solPriceUsd;
+  const totalFeesSol = sumFees(fees);
+  const buyFees = fees.buyPriority + fees.buyBribe;
+  const costBasisSol = solInvested + buyFees;
+  const initialUsd = costBasisSol * solPriceUsd;
   const multiplier = buyMarketCap > 0 ? currentMarketCap / buyMarketCap : 0;
   const currentUsd = solInvested * solPriceUsd * multiplier;
-  const profitUsd = currentUsd - initialUsd;
   const currentSol = solPriceUsd > 0 ? currentUsd / solPriceUsd : 0;
+  const profitSol = currentSol - solInvested - totalFeesSol;
+  const profitUsd = profitSol * solPriceUsd;
   return {
     initialUsd,
     multiplier,
     currentUsd,
     currentSol,
     profitUsd,
-    profitSol: currentSol - solInvested - feeSol,
-    roiPercent: initialUsd > 0 ? (profitUsd / initialUsd) * 100 : 0,
+    profitSol,
+    roiPercent: costBasisSol > 0 ? (profitSol / costBasisSol) * 100 : 0,
+    totalFeesSol,
   };
 }
 
