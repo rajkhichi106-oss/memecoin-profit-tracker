@@ -264,13 +264,17 @@ export function useProfitChecker() {
     return () => window.clearInterval(id);
   }, [refreshInterval, token, runFetch]);
 
-  // Dynamic browser tab title: "Coin ↓ $Price", only when token or price changes.
-  const titleName = token?.name?.trim() || token?.symbol?.trim() || "";
-  const titlePrice = token?.priceUsd ?? null;
+  // Dynamic browser tab title: show active live profit as an integer in INR.
+  const titleName = token?.symbol?.trim() || token?.name?.trim() || "";
+  const titleProfitInr = useMemo(() => {
+    if (!result || !usdInr) return null;
+    return Math.round(result.profitUsd * usdInr);
+  }, [result, usdInr]);
   useEffect(() => {
-    if (!titleName || !titlePrice) return;
-    document.title = `${titleName} ↓ ${formatCompactUsd(titlePrice)}`;
-  }, [titleName, titlePrice]);
+    if (!titleName || titleProfitInr === null) return;
+    const sign = titleProfitInr > 0 ? "+" : titleProfitInr < 0 ? "-" : "";
+    document.title = `${titleName} ${sign}₹${Math.abs(titleProfitInr).toLocaleString("en-IN")}`;
+  }, [titleName, titleProfitInr]);
 
   const pasteFromClipboard = useCallback(async () => {
     try {
