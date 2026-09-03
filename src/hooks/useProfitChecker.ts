@@ -66,7 +66,7 @@ export function useProfitChecker() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [sol, fx] = await Promise.all([fetchSol({}), fetchFx({})]);
+      const [sol, fx] = await Promise.all([getSolPrice({}), getFxRate({})]);
       if (cancelled) return;
       if (sol.ok) setSolPrice(sol.priceUsd);
       if (fx.ok) {
@@ -78,7 +78,7 @@ export function useProfitChecker() {
     return () => {
       cancelled = true;
     };
-  }, [fetchSol, fetchFx]);
+  }, []);
 
   const buyMarketCap = useMemo(
     () => parseCompactNumber(`${buyMcInput}${buyMcUnit}`),
