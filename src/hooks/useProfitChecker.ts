@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import {
@@ -31,10 +30,6 @@ const CACHE_TTL = 8_000;
 const FX_TTL = 300_000;
 
 export function useProfitChecker() {
-  const fetchToken = useServerFn(getTokenData);
-  const fetchSol = useServerFn(getSolPrice);
-  const fetchFx = useServerFn(getFxRate);
-
   const [ca, setCa] = useState("");
   const [amount, setAmount] = useState("");
   const [amountUnit, setAmountUnit] = useState<AmountUnit>("SOL");
@@ -213,7 +208,7 @@ export function useProfitChecker() {
         }
       }
     },
-    [ca, amountValue, buyMarketCap, token, usdInr, fxRates, fetchToken, fetchSol, fetchFx],
+    [ca, amountValue, buyMarketCap, token, usdInr, getTokenData, getSolPrice, getFxRate, fees],
   );
 
   // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
