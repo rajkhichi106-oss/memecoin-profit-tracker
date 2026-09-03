@@ -89,7 +89,6 @@ export function ResultCard({
   const tone = up ? "profit" : "loss";
   const inr = (usd: number) => (usdInr ? usd * usdInr : null);
   const profitInr = inr(result.profitUsd);
-  const valueInr = inr(result.currentUsd);
   const currencyOptions = [...new Set([...CURRENCY_CODES, ...Object.keys(fxRates)])].filter(
     (code) => code === "USD" || !!fxRates[code],
   );
