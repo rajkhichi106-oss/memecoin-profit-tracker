@@ -112,6 +112,25 @@ export type ProfitResult = {
   totalFeesSol: number;
 };
 
+export type PositionEntry = {
+  id: string;
+  tokenAddress: string;
+  entryMarketCap: number;
+  solInvested: number;
+  fees: TradeFees;
+  createdAt: number;
+};
+
+export type CalculatedPosition = {
+  entry: PositionEntry;
+  result: ProfitResult;
+};
+
+export type PositionSummary = ProfitResult & {
+  totalInvestedSol: number;
+  totalBuyFeesSol: number;
+};
+
 /**
  * Single source of truth for Live Position and Expected Market Cap math:
  *   position value = invested SOL × (current MC / entry MC)
@@ -157,6 +176,58 @@ export function calculateTargetValue(
     ...calculateProfit({ ...base, currentMarketCap: targetMarketCap }),
   };
 }
+
+/** Calculates one saved entry at a live or expected market cap. */
+export function calculatePosition(
+  entry: PositionEntry,
+  marketCap: number,
+  solPriceUsd: number,
+): CalculatedPosition {
+  return {
+    entry,
+    result: calculateProfit({
+      solInvested: entry.solInvested,
+      buyMarketCap: entry.entryMarketCap,
+      currentMarketCap: marketCap,
+      solPriceUsd,
+      fees: entry.fees,
+    }),
+  };
+}
+
+/** Sums independently calculated entries without changing their fixed fee costs. */
+export function summarizePositions(positions: CalculatedPosition[]): PositionSummary {
+  const totalInvestedSol = positions.reduce((sum, position) => sum + position.entry.solInvested, 0);
+  const totalBuyFeesSol = positions.reduce(
+    (sum, position) => sum + position.entry.fees.buyPriority + position.entry.fees.buyBribe,
+    0,
+  );
+  const totalFeesSol = positions.reduce((sum, position) => sum + position.result.totalFeesSol, 0);
+  const currentSol = positions.reduce((sum, position) => sum + position.result.currentSol, 0);
+  const currentUsd = positions.reduce((sum, position) => sum + position.result.currentUsd, 0);
+  const profitSol = positions.reduce((sum, position) => sum + position.result.profitSol, 0);
+  const profitUsd = positions.reduce((sum, position) => sum + position.result.profitUsd, 0);
+  const costBasisSol = totalInvestedSol + totalBuyFeesSol;
+
+  return {
+    initialUsd: costBasisSol * solPriceUsd,
+    multiplier: totalInvestedSol > 0 ? currentSol / totalInvestedSol : 0,
+    currentUsd,
+    currentSol,
+    profitUsd,
+    profitSol,
+    roiPercent: costBasisSol > 0 ? (profitSol / costBasisSol) * 100 : 0,
+    totalFeesSol,
+    totalInvestedSol,
+    totalBuyFeesSol,
+  };
+}
+
+export type TargetGroup = {
+  targetMarketCap: number;
+  positions: CalculatedPosition[];
+  summary: PositionSummary;
+};
 
 export const DEFAULT_TARGETS = [100_000, 250_000, 500_000, 1_000_000, 5_000_000, 10_000_000];
 
