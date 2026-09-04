@@ -10,17 +10,22 @@ import {
 } from "@/lib/market-data.functions";
 import {
   calculateProfit,
-  calculateTargetValue,
+  calculatePosition,
   DEFAULT_TARGETS,
   formatCompactUsd,
   isValidSolanaAddress,
   parseCompactNumber,
   sumFees,
+  summarizePositions,
+  type CalculatedPosition,
+  type PositionEntry,
+  type PositionSummary,
   type ProfitResult,
   type TargetRow,
   type TradeFees,
 } from "@/lib/profit";
-import { clearHistory, loadHistory, saveHistoryEntry, type HistoryEntry } from "@/lib/history";
+import { clearHistory, loadHistory, saveHistoryEntries, type HistoryEntry } from "@/lib/history";
+import { loadPositionEntries, savePositionEntries } from "@/lib/positions";
 
 export type AmountUnit = "SOL" | "USD";
 export type MarketCapUnit = "K" | "M" | "B";
@@ -52,6 +57,7 @@ export function useProfitChecker() {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [refreshInterval, setRefreshInterval] = useState<RefreshOption>(30);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [positionEntries, setPositionEntries] = useState<PositionEntry[]>([]);
 
   const lastFetch = useRef<{ ca: string; at: number }>({ ca: "", at: 0 });
   const reqId = useRef(0);
@@ -60,6 +66,7 @@ export function useProfitChecker() {
 
   useEffect(() => {
     setHistory(loadHistory());
+    setPositionEntries(loadPositionEntries());
   }, []);
 
   // Pull SOL price + USD/INR early so conversions work before the first check.
@@ -113,28 +120,94 @@ export function useProfitChecker() {
 
   const currentMarketCap = token ? (token.marketCap ?? token.fdv ?? null) : null;
 
-  const result: ProfitResult | null = useMemo(() => {
-    if (!solInvested || !buyMarketCap || !currentMarketCap || !solPrice) return null;
-    return calculateProfit({ solInvested, buyMarketCap, currentMarketCap, solPriceUsd: solPrice, fees });
-  }, [solInvested, buyMarketCap, currentMarketCap, solPrice, fees]);
+  const legacyEntries = useMemo<PositionEntry[]>(() => {
+    if (!token) return [];
+    return history
+      .filter((entry) => entry.ca === token.address)
+      .map((entry) => ({
+        id: entry.entryId ?? `history:${entry.id}`,
+        tokenAddress: entry.ca,
+        entryMarketCap: entry.buyMarketCap,
+        solInvested: entry.solInvested,
+        fees: entry.fees ?? { buyPriority: 0, buyBribe: 0, sellPriority: 0, sellBribe: 0 },
+        createdAt: entry.createdAt ?? entry.checkedAt,
+      }));
+  }, [history, token]);
 
-  const targets: TargetRow[] = useMemo(() => {
-    if (!solInvested || !buyMarketCap || !solPrice) return [];
-    return DEFAULT_TARGETS.map((t) =>
-      calculateTargetValue(t, { solInvested, buyMarketCap, solPriceUsd: solPrice, fees }),
-    );
-  }, [solInvested, buyMarketCap, solPrice, fees]);
+  const activeEntries = useMemo(() => {
+    if (!token) return [];
+    const merged = new Map<string, PositionEntry>();
+    [...legacyEntries, ...positionEntries]
+      .filter((entry) => entry.tokenAddress === token.address)
+      .forEach((entry) => merged.set(entry.id, entry));
+    if (merged.size === 0 && solInvested && buyMarketCap) {
+      merged.set("draft:active", {
+        id: "draft:active",
+        tokenAddress: token.address,
+        entryMarketCap: buyMarketCap,
+        solInvested,
+        fees,
+        createdAt: Date.now(),
+      });
+    }
+    return [...merged.values()].sort((a, b) => a.createdAt - b.createdAt);
+  }, [legacyEntries, positionEntries, token, solInvested, buyMarketCap, fees]);
+
+  const livePositions = useMemo<CalculatedPosition[]>(() => {
+    if (!currentMarketCap || !solPrice) return [];
+    return activeEntries.map((entry) => calculatePosition(entry, currentMarketCap, solPrice));
+  }, [activeEntries, currentMarketCap, solPrice]);
+
+  const positionSummary: PositionSummary | null = useMemo(
+    () => (livePositions.length > 0 && solPrice ? summarizePositions(livePositions) : null),
+    [livePositions, solPrice],
+  );
+
+  const targetGroups = useMemo(() => {
+    if (!solPrice || activeEntries.length === 0) return [];
+    return DEFAULT_TARGETS.map((targetMarketCap) => {
+      const positions = activeEntries.map((entry) =>
+        calculatePosition(entry, targetMarketCap, solPrice),
+      );
+      return { targetMarketCap, positions, summary: summarizePositions(positions) };
+    });
+  }, [activeEntries, solPrice]);
+
+  const targets: TargetRow[] = useMemo(
+    () => targetGroups.map((group) => ({ targetMarketCap: group.targetMarketCap, ...group.summary })),
+    [targetGroups],
+  );
 
   const customTargetMc = useMemo(() => parseCompactNumber(customTarget), [customTarget]);
-  const customTargetRow: TargetRow | null = useMemo(() => {
-    if (!customTargetMc || !solInvested || !buyMarketCap || !solPrice) return null;
-    return calculateTargetValue(customTargetMc, {
-      solInvested,
-      buyMarketCap,
-      solPriceUsd: solPrice,
-      fees,
+  const customTargetGroup = useMemo(() => {
+    if (!customTargetMc || !solPrice || activeEntries.length === 0) return null;
+    const positions = activeEntries.map((entry) => calculatePosition(entry, customTargetMc, solPrice));
+    return { targetMarketCap: customTargetMc, positions, summary: summarizePositions(positions) };
+  }, [customTargetMc, activeEntries, solPrice]);
+  const customTargetRow: TargetRow | null = customTargetGroup
+    ? { targetMarketCap: customTargetGroup.targetMarketCap, ...customTargetGroup.summary }
+    : null;
+
+  const appendEntry = useCallback((entry: PositionEntry) => {
+    setPositionEntries((previous) => {
+      const next = [...previous, entry];
+      savePositionEntries(next);
+      return next;
     });
-  }, [customTargetMc, solInvested, buyMarketCap, solPrice, fees]);
+    toast.success(`Entry #${positionEntries.filter((item) => item.tokenAddress === entry.tokenAddress).length + 1} saved`);
+  }, [positionEntries]);
+
+  const makeEntry = useCallback((): PositionEntry | null => {
+    if (!token || !solInvested || !buyMarketCap) return null;
+    return {
+      id: `${token.address}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+      tokenAddress: token.address,
+      entryMarketCap: buyMarketCap,
+      solInvested,
+      fees,
+      createdAt: Date.now(),
+    };
+  }, [token, solInvested, buyMarketCap, fees]);
 
   const runFetch = useCallback(
     async (mode: "check" | "refresh" | "auto") => {
@@ -155,6 +228,8 @@ export function useProfitChecker() {
         const now = Date.now();
         if (token && lastFetch.current.ca === address && now - lastFetch.current.at < CACHE_TTL) {
           setError(null);
+          const entry = makeEntry();
+          if (entry) appendEntry(entry);
           return;
         }
       }
@@ -195,6 +270,10 @@ export function useProfitChecker() {
         setToken(tokenRes.token);
         setLastUpdated(tokenRes.token.fetchedAt);
         lastFetch.current = { ca: address, at: Date.now() };
+        if (mode === "check") {
+          const entry = makeEntry();
+          if (entry) appendEntry(entry);
+        }
 
         if (tokenRes.token.marketCap === null && tokenRes.token.fdv === null) {
           setError("Market cap unavailable for this pair right now.");
@@ -208,7 +287,7 @@ export function useProfitChecker() {
         }
       }
     },
-    [ca, amountValue, buyMarketCap, token, usdInr],
+    [ca, amountValue, buyMarketCap, token, usdInr, makeEntry, appendEntry],
   );
 
   // Debounced auto-fetch: typing/pasting a CA loads market data without a click.
@@ -234,28 +313,33 @@ export function useProfitChecker() {
   const check = useCallback(() => void runFetch("check"), [runFetch]);
   const refreshNow = useCallback(() => void runFetch("refresh"), [runFetch]);
 
-  // Persist a history entry whenever a fresh successful calculation lands.
+  // Persist a history snapshot for each saved entry whenever live data refreshes.
   const savedKey = useRef("");
   useEffect(() => {
-    if (!token || !result || !solInvested || !buyMarketCap || !currentMarketCap || !lastUpdated)
+    if (!token || livePositions.length === 0 || !currentMarketCap || !lastUpdated)
       return;
-    const key = `${token.address}:${buyMarketCap}:${lastUpdated}`;
+    const key = `${token.address}:${lastUpdated}:${livePositions.map((position) => position.entry.id).join(",")}`;
     if (savedKey.current === key) return;
     savedKey.current = key;
     setHistory(
-      saveHistoryEntry({
-        id: key,
-        ca: token.address,
-        symbol: token.symbol,
-        buyMarketCap,
-        currentMarketCap,
-        solInvested,
-        currentUsd: result.currentUsd,
-        profitUsd: result.profitUsd,
-        checkedAt: lastUpdated,
-      }),
+      saveHistoryEntries(
+        livePositions.map(({ entry, result: entryResult }) => ({
+          id: entry.id,
+          entryId: entry.id,
+          ca: token.address,
+          symbol: token.symbol,
+          buyMarketCap: entry.entryMarketCap,
+          currentMarketCap,
+          solInvested: entry.solInvested,
+          currentUsd: entryResult.currentUsd,
+          profitUsd: entryResult.profitUsd,
+          checkedAt: lastUpdated,
+          createdAt: entry.createdAt,
+          fees: entry.fees,
+        })),
+      ),
     );
-  }, [token, result, solInvested, buyMarketCap, currentMarketCap, lastUpdated]);
+  }, [token, livePositions, currentMarketCap, lastUpdated]);
 
   // Auto refresh of the live position.
   useEffect(() => {
@@ -267,9 +351,9 @@ export function useProfitChecker() {
   // Dynamic browser tab title: show active live profit as an integer in INR.
   const titleName = token?.symbol?.trim() || token?.name?.trim() || "";
   const titleProfitInr = useMemo(() => {
-    if (!result || !usdInr) return null;
-    return Math.round(result.profitUsd * usdInr);
-  }, [result, usdInr]);
+    if (!positionSummary || !usdInr) return null;
+    return Math.round(positionSummary.profitUsd * usdInr);
+  }, [positionSummary, usdInr]);
   useEffect(() => {
     if (!titleName || titleProfitInr === null) return;
     const sign = titleProfitInr > 0 ? "+" : titleProfitInr < 0 ? "-" : "";
@@ -311,6 +395,15 @@ export function useProfitChecker() {
     toast.success(`Tracking ${trade.symbol} position`);
     lastFetch.current = { ca: "", at: 0 };
   }, []);
+
+  const addEntry = useCallback(() => {
+    const entry = makeEntry();
+    if (!entry) {
+      setError("Enter an investment and buy market cap before adding an entry.");
+      return;
+    }
+    appendEntry(entry);
+  }, [appendEntry, makeEntry]);
 
   // Auto-check once trackTrade has filled every field.
   const pendingTrack = useRef(false);
@@ -364,9 +457,14 @@ export function useProfitChecker() {
     buyMarketCap,
     solInvested,
     currentMarketCap,
-    result,
+    result: positionSummary,
+    positionEntries: activeEntries,
+    livePositions,
+    positionSummary,
     targets,
     customTargetRow,
+    targetGroups,
+    customTargetGroup,
     check,
     refreshNow,
     pasteFromClipboard,
@@ -375,5 +473,6 @@ export function useProfitChecker() {
       trackTrade(t);
       markPendingTrack();
     },
+    addEntry,
   };
 }
