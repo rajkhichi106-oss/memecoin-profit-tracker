@@ -1,0 +1,4 @@
+- [ ] Add persistent multiple-entry model and centralized aggregate calculations
+- [ ] Wire check/add-entry actions without duplicate market-data requests
+- [ ] Render per-entry and combined live/expected results in the existing UI
+- [ ] Validate typecheck, build diagnostics, and preview behavior
