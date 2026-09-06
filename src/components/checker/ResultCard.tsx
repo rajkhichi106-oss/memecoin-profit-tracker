@@ -154,7 +154,7 @@ export function ResultCard({
           <Stat
             label="Total Invested"
             value={formatSol(result.totalInvestedSol)}
-            sub={formatUsd(result.totalInvestedSol * (result.currentUsd / Math.max(result.currentSol, 1e-12)))}
+            sub={formatUsd(result.totalInvestedUsd)}
           />
           <Stat
             label="Total Current Value"
@@ -260,7 +260,7 @@ export function ResultCard({
           exchange account. Invested{" "}
            {formatUsd(result.initialUsd)}
            {usdInr ? ` (${formatInr(result.initialUsd * usdInr)})` : ""}.
-           {feeSol > 0 ? ` Includes ${formatSol(feeSol)} in fees.` : ""}
+           {result.totalFeesSol > 0 ? ` Includes ${formatSol(result.totalFeesSol)} in fees across all entries.` : ""}
         </p>
       </div>
     </section>

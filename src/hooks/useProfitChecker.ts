@@ -18,7 +18,6 @@ import {
   type CalculatedPosition,
   type PositionEntry,
   type PositionSummary,
-  type ProfitResult,
   type TargetRow,
   type TradeFees,
 } from "@/lib/profit";

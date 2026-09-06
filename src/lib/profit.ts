@@ -128,6 +128,7 @@ export type CalculatedPosition = {
 
 export type PositionSummary = ProfitResult & {
   totalInvestedSol: number;
+  totalInvestedUsd: number;
   totalBuyFeesSol: number;
 };
 
@@ -221,6 +222,7 @@ export function summarizePositions(
     roiPercent: costBasisSol > 0 ? (profitSol / costBasisSol) * 100 : 0,
     totalFeesSol,
     totalInvestedSol,
+    totalInvestedUsd: totalInvestedSol * solPriceUsd,
     totalBuyFeesSol,
   };
 }
