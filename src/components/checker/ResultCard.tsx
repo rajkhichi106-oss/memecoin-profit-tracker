@@ -19,12 +19,12 @@ import {
   formatUsd,
   timeAgo,
   type CalculatedPosition,
-  type ProfitResult,
+  type PositionSummary,
 } from "@/lib/profit";
 import type { RefreshOption } from "@/hooks/useProfitChecker";
 
 type Props = {
-  result: ProfitResult;
+  result: PositionSummary;
   positions: CalculatedPosition[];
   currentMarketCap: number;
   buyMarketCap: number;
@@ -153,8 +153,8 @@ export function ResultCard({
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Stat
             label="Total Invested"
-            value={formatSol(result.initialUsd / (result.initialUsd > 0 ? result.initialUsd / result.currentSol : 1))}
-            sub={formatUsd(result.initialUsd)}
+            value={formatSol(result.totalInvestedSol)}
+            sub={formatUsd(result.totalInvestedSol * (result.currentUsd / Math.max(result.currentSol, 1e-12)))}
           />
           <Stat
             label="Total Current Value"
@@ -215,27 +215,6 @@ export function ResultCard({
           <Button variant="outline" size="sm" onClick={onAddEntry}>
             + Add Entry
           </Button>
-        </div>
-
-        <div className="mt-4 hidden grid-cols-2 gap-2">
-          <Stat
-            label="Current Position Value"
-             value={formatCurrency(result.currentUsd, displayCurrency, fxRates)}
-            sub={`${formatUsd(result.currentUsd)} USD • ${formatSol(result.currentSol)}`}
-          />
-          <Stat
-            label="Total Fees"
-            value={formatSol(result.totalFeesSol)}
-            sub="buy + sell, fixed"
-          />
-
-          <Stat label="ROI" value={formatPercent(result.roiPercent)} tone={tone} />
-          <Stat label="Multiplier" value={`${result.multiplier.toFixed(2)}×`} />
-          <Stat
-            label={marketCapMetric === "fdv" ? "Current FDV" : "Current MC"}
-            value={formatCompactUsd(currentMarketCap)}
-          />
-          <Stat label="Buy MC" value={formatCompactUsd(buyMarketCap)} />
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">

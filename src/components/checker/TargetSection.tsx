@@ -6,16 +6,19 @@ import {
   formatSol,
   formatUsd,
   type TargetRow,
+  type TargetGroup,
 } from "@/lib/profit";
 
 type Props = {
   targets: TargetRow[];
+  targetGroups: TargetGroup[];
   customTargetRow: TargetRow | null;
+  customTargetGroup: TargetGroup | null;
   usdInr: number | null;
   feeSol: number;
 };
 
-export function TargetSection({ targets, customTargetRow, usdInr, feeSol }: Props) {
+export function TargetSection({ targets, targetGroups, customTargetRow, customTargetGroup, usdInr, feeSol }: Props) {
   const money = (usd: number, sign?: boolean) =>
     usdInr ? formatInr(usd * usdInr, { sign: !!sign }) : formatUsd(usd, { sign: !!sign });
 
@@ -45,6 +48,13 @@ export function TargetSection({ targets, customTargetRow, usdInr, feeSol }: Prop
           <p className="num mt-1 text-[11px] text-muted-foreground">
             Position value {formatSol(customTargetRow.currentSol)} • fees {formatSol(feeSol)}
           </p>
+          <div className="mt-3 space-y-1.5 border-t border-border/50 pt-2">
+            {customTargetGroup?.positions.map(({ entry, result }, index) => (
+              <p key={entry.id} className="num text-[11px] text-muted-foreground">
+                Entry #{index + 1}: {formatCompactUsd(entry.entryMarketCap)} → {formatSol(result.currentSol)} value • {formatSol(result.profitSol, { sign: true })} profit
+              </p>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -61,7 +71,9 @@ export function TargetSection({ targets, customTargetRow, usdInr, feeSol }: Prop
           <tbody className="num">
             {targets.map((t) => {
               const up = t.profitUsd >= 0;
+              const group = targetGroups.find((candidate) => candidate.targetMarketCap === t.targetMarketCap);
               return (
+                <>
                 <tr key={t.targetMarketCap} className="border-t border-border/60">
                   <td className="py-2.5 font-semibold">{formatCompactUsd(t.targetMarketCap)}</td>
                   <td className="py-2.5">
@@ -77,6 +89,15 @@ export function TargetSection({ targets, customTargetRow, usdInr, feeSol }: Prop
                     {formatPercent(t.roiPercent)}
                   </td>
                 </tr>
+                {group?.positions.map(({ entry, result }, index) => (
+                  <tr key={`${entry.id}:${t.targetMarketCap}`} className="border-t border-border/30 text-[11px] text-muted-foreground">
+                    <td className="py-1 pl-3">Entry #{index + 1} • {formatCompactUsd(entry.entryMarketCap)}</td>
+                    <td className="py-1">{money(result.currentUsd)}</td>
+                    <td className={cn("py-1", result.profitUsd >= 0 ? "text-profit" : "text-loss")}>{money(result.profitUsd, true)}</td>
+                    <td className="py-1 text-right">{formatPercent(result.roiPercent)}</td>
+                  </tr>
+                ))}
+                </>
               );
             })}
           </tbody>
