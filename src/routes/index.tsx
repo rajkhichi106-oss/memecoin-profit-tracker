@@ -119,6 +119,7 @@ function Index() {
             error={c.error}
             onCheck={c.check}
             onAddEntry={c.addEntry}
+            canAddEntry={Boolean(c.token && c.currentMarketCap)}
             onPaste={() => void c.pasteFromClipboard()}
           />
           <WalletTracker usdInr={c.usdInr} onTrack={c.trackTrade} tick={tick} />

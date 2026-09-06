@@ -51,6 +51,7 @@ type Props = {
   error: string | null;
   onCheck: () => void;
   onAddEntry: () => void;
+  canAddEntry: boolean;
   onPaste: () => void;
 };
 
@@ -82,6 +83,7 @@ export function CheckForm({
   error,
   onCheck,
   onAddEntry,
+  canAddEntry,
   onPaste,
 }: Props) {
   const caInvalid = ca.trim().length > 0 && !isValidSolanaAddress(ca);
@@ -286,9 +288,11 @@ export function CheckForm({
               </>
             )}
           </Button>
-          <Button type="button" variant="secondary" size="lg" onClick={onAddEntry} disabled={loading} className="h-12 text-sm">
-            <Plus className="size-4" /> Add Entry
-          </Button>
+          {canAddEntry ? (
+            <Button type="button" variant="secondary" size="lg" onClick={onAddEntry} disabled={loading} className="h-12 text-sm">
+              <Plus className="size-4" /> Add Entry
+            </Button>
+          ) : null}
         </div>
 
         {error ? (

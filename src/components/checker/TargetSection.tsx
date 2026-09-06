@@ -79,12 +79,15 @@ export function TargetSection({ targets, targetGroups, customTargetRow, customTa
                   <td className="py-2.5 font-semibold">{formatCompactUsd(t.targetMarketCap)}</td>
                   <td className="py-2.5">
                     {money(t.currentUsd)}
-                    <span className="ml-1 text-[11px] text-muted-foreground">
-                      {formatUsd(t.currentUsd)}
+                    <span className="ml-1 block text-[11px] text-muted-foreground">
+                      {formatUsd(t.currentUsd)} • {formatSol(t.currentSol)}
                     </span>
                   </td>
                   <td className={cn("py-2.5", up ? "text-profit" : "text-loss")}>
                     {money(t.profitUsd, true)}
+                    <span className="block text-[11px] font-normal">
+                      {formatUsd(t.profitUsd, { sign: true })} • {formatSol(t.profitSol, { sign: true })}
+                    </span>
                   </td>
                   <td className={cn("py-2.5 text-right", up ? "text-profit" : "text-loss")}>
                     {formatPercent(t.roiPercent)}
@@ -93,8 +96,8 @@ export function TargetSection({ targets, targetGroups, customTargetRow, customTa
                 {group?.positions.map(({ entry, result }, index) => (
                   <tr key={`${entry.id}:${t.targetMarketCap}`} className="border-t border-border/30 text-[11px] text-muted-foreground">
                     <td className="py-1 pl-3">Entry #{index + 1} • {formatCompactUsd(entry.entryMarketCap)}</td>
-                    <td className="py-1">{money(result.currentUsd)}</td>
-                    <td className={cn("py-1", result.profitUsd >= 0 ? "text-profit" : "text-loss")}>{money(result.profitUsd, true)}</td>
+                    <td className="py-1">{money(result.currentUsd)}<span className="block">{formatUsd(result.currentUsd)} • {formatSol(result.currentSol)}</span></td>
+                    <td className={cn("py-1", result.profitUsd >= 0 ? "text-profit" : "text-loss")}>{money(result.profitUsd, true)}<span className="block">{formatUsd(result.profitUsd, { sign: true })} • {formatSol(result.profitSol, { sign: true })}</span></td>
                     <td className="py-1 text-right">{formatPercent(result.roiPercent)}</td>
                   </tr>
                 ))}
