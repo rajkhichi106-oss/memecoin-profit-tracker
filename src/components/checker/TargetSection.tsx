@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Fragment } from "react";
 import {
   formatCompactUsd,
   formatInr,
@@ -73,7 +74,7 @@ export function TargetSection({ targets, targetGroups, customTargetRow, customTa
               const up = t.profitUsd >= 0;
               const group = targetGroups.find((candidate) => candidate.targetMarketCap === t.targetMarketCap);
               return (
-                <>
+                <Fragment key={t.targetMarketCap}>
                 <tr key={t.targetMarketCap} className="border-t border-border/60">
                   <td className="py-2.5 font-semibold">{formatCompactUsd(t.targetMarketCap)}</td>
                   <td className="py-2.5">
@@ -97,7 +98,7 @@ export function TargetSection({ targets, targetGroups, customTargetRow, customTa
                     <td className="py-1 text-right">{formatPercent(result.roiPercent)}</td>
                   </tr>
                 ))}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
