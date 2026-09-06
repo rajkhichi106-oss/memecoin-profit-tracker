@@ -196,7 +196,10 @@ export function calculatePosition(
 }
 
 /** Sums independently calculated entries without changing their fixed fee costs. */
-export function summarizePositions(positions: CalculatedPosition[]): PositionSummary {
+export function summarizePositions(
+  positions: CalculatedPosition[],
+  solPriceUsd: number,
+): PositionSummary {
   const totalInvestedSol = positions.reduce((sum, position) => sum + position.entry.solInvested, 0);
   const totalBuyFeesSol = positions.reduce(
     (sum, position) => sum + position.entry.fees.buyPriority + position.entry.fees.buyBribe,
@@ -208,10 +211,6 @@ export function summarizePositions(positions: CalculatedPosition[]): PositionSum
   const profitSol = positions.reduce((sum, position) => sum + position.result.profitSol, 0);
   const profitUsd = positions.reduce((sum, position) => sum + position.result.profitUsd, 0);
   const costBasisSol = totalInvestedSol + totalBuyFeesSol;
-  const solPriceUsd = positions[0]?.result.currentSol > 0
-    ? positions[0].result.currentUsd / positions[0].result.currentSol
-    : 0;
-
   return {
     initialUsd: costBasisSol * solPriceUsd,
     multiplier: totalInvestedSol > 0 ? currentSol / totalInvestedSol : 0,

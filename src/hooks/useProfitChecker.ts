@@ -157,7 +157,7 @@ export function useProfitChecker() {
   }, [activeEntries, currentMarketCap, solPrice]);
 
   const positionSummary: PositionSummary | null = useMemo(
-    () => (livePositions.length > 0 && solPrice ? summarizePositions(livePositions) : null),
+    () => (livePositions.length > 0 && solPrice ? summarizePositions(livePositions, solPrice) : null),
     [livePositions, solPrice],
   );
 
@@ -167,7 +167,7 @@ export function useProfitChecker() {
       const positions = activeEntries.map((entry) =>
         calculatePosition(entry, targetMarketCap, solPrice),
       );
-      return { targetMarketCap, positions, summary: summarizePositions(positions) };
+      return { targetMarketCap, positions, summary: summarizePositions(positions, solPrice) };
     });
   }, [activeEntries, solPrice]);
 
@@ -180,7 +180,7 @@ export function useProfitChecker() {
   const customTargetGroup = useMemo(() => {
     if (!customTargetMc || !solPrice || activeEntries.length === 0) return null;
     const positions = activeEntries.map((entry) => calculatePosition(entry, customTargetMc, solPrice));
-    return { targetMarketCap: customTargetMc, positions, summary: summarizePositions(positions) };
+    return { targetMarketCap: customTargetMc, positions, summary: summarizePositions(positions, solPrice) };
   }, [customTargetMc, activeEntries, solPrice]);
   const customTargetRow: TargetRow | null = customTargetGroup
     ? { targetMarketCap: customTargetGroup.targetMarketCap, ...customTargetGroup.summary }
