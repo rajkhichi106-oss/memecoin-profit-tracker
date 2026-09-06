@@ -52,7 +52,7 @@ export function TargetSection({ targets, targetGroups, customTargetRow, customTa
           <div className="mt-3 space-y-1.5 border-t border-border/50 pt-2">
             {customTargetGroup?.positions.map(({ entry, result }, index) => (
               <p key={entry.id} className="num text-[11px] text-muted-foreground">
-                Entry #{index + 1}: {formatCompactUsd(entry.entryMarketCap)} → {formatSol(result.currentSol)} value • {formatSol(result.profitSol, { sign: true })} profit
+                Entry #{index + 1}: {formatCompactUsd(entry.entryMarketCap)} → {money(result.currentUsd)} / {formatUsd(result.currentUsd)} / {formatSol(result.currentSol)} value • {money(result.profitUsd, true)} / {formatUsd(result.profitUsd, { sign: true })} / {formatSol(result.profitSol, { sign: true })} profit
               </p>
             ))}
           </div>
