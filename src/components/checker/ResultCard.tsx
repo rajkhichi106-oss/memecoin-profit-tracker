@@ -18,12 +18,14 @@ import {
   formatSol,
   formatUsd,
   timeAgo,
+  type CalculatedPosition,
   type ProfitResult,
 } from "@/lib/profit";
 import type { RefreshOption } from "@/hooks/useProfitChecker";
 
 type Props = {
   result: ProfitResult;
+  positions: CalculatedPosition[];
   currentMarketCap: number;
   buyMarketCap: number;
   marketCapMetric: "marketCap" | "fdv" | "none";
@@ -36,6 +38,7 @@ type Props = {
   setRefreshInterval: (v: RefreshOption) => void;
   refreshing: boolean;
   onRefresh: () => void;
+  onAddEntry: () => void;
   lastUpdated: number | null;
   tick: number;
 };
@@ -70,6 +73,7 @@ function Stat({
 
 export function ResultCard({
   result,
+  positions,
   currentMarketCap,
   buyMarketCap,
   marketCapMetric,
@@ -82,6 +86,7 @@ export function ResultCard({
   setRefreshInterval,
   refreshing,
   onRefresh,
+  onAddEntry,
   lastUpdated,
   tick,
 }: Props) {
@@ -103,9 +108,16 @@ export function ResultCard({
       />
       <div className="relative">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <h2 className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Live Position
-          </h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Live Position
+            </h2>
+            {positions.length > 1 ? (
+              <span className="num shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+                {positions.length} entries
+              </span>
+            ) : null}
+          </div>
           <span
             className={cn(
               "num inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
@@ -139,6 +151,73 @@ export function ResultCard({
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
+          <Stat
+            label="Total Invested"
+            value={formatSol(result.initialUsd / (result.initialUsd > 0 ? result.initialUsd / result.currentSol : 1))}
+            sub={formatUsd(result.initialUsd)}
+          />
+          <Stat
+            label="Total Current Value"
+            value={formatCurrency(result.currentUsd, displayCurrency, fxRates)}
+            sub={`${formatUsd(result.currentUsd)} USD • ${formatSol(result.currentSol)}`}
+          />
+          <Stat
+            label="Total Fees"
+            value={formatSol(result.totalFeesSol)}
+            sub={`${formatUsd(result.totalFeesSol * (result.currentUsd / Math.max(result.currentSol, 1e-12)))}`}
+          />
+          <Stat label="ROI" value={formatPercent(result.roiPercent)} tone={tone} />
+          <Stat label="Multiplier" value={`${result.multiplier.toFixed(2)}×`} />
+          <Stat
+            label={marketCapMetric === "fdv" ? "Current FDV" : "Current MC"}
+            value={formatCompactUsd(currentMarketCap)}
+          />
+          <Stat label="Active entries" value={String(positions.length)} />
+          <Stat label="Buy MC (latest)" value={formatCompactUsd(buyMarketCap)} />
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {positions.map(({ entry, result: entryResult }, index) => {
+            const entryProfitInr = inr(entryResult.profitUsd);
+            return (
+              <div key={entry.id} className="rounded-xl border border-border bg-secondary/20 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold">Entry #{index + 1}</p>
+                  <span className="num text-[11px] text-muted-foreground">
+                    {formatCompactUsd(entry.entryMarketCap)} • {formatSol(entry.solInvested)}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                  <div>
+                    <p className="text-muted-foreground">Current value</p>
+                    <p className="num font-semibold">{formatCurrency(entryResult.currentUsd, displayCurrency, fxRates)}</p>
+                    <p className="num text-muted-foreground">{formatUsd(entryResult.currentUsd)} • {formatSol(entryResult.currentSol)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Net profit</p>
+                    <p className={cn("num font-semibold", entryResult.profitUsd >= 0 ? "text-profit" : "text-loss")}>
+                      {formatCurrency(entryResult.profitUsd, displayCurrency, fxRates, { sign: true })}
+                    </p>
+                    <p className="num text-muted-foreground">{formatUsd(entryResult.profitUsd, { sign: true })} • {formatSol(entryResult.profitSol, { sign: true })}{entryProfitInr !== null ? ` • ${formatInr(entryProfitInr, { sign: true })}` : ""}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Fees</p>
+                    <p className="num font-semibold">{formatSol(entryResult.totalFeesSol)}</p>
+                    <p className="num text-muted-foreground">fixed cost</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onAddEntry}>
+            + Add Entry
+          </Button>
+        </div>
+
+        <div className="mt-4 hidden grid-cols-2 gap-2">
           <Stat
             label="Current Position Value"
              value={formatCurrency(result.currentUsd, displayCurrency, fxRates)}
