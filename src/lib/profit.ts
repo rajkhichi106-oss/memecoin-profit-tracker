@@ -128,6 +128,7 @@ export type CalculatedPosition = {
 
 export type PositionSummary = ProfitResult & {
   totalInvestedSol: number;
+  totalInvestedUsd: number;
   totalBuyFeesSol: number;
 };
 
@@ -196,7 +197,10 @@ export function calculatePosition(
 }
 
 /** Sums independently calculated entries without changing their fixed fee costs. */
-export function summarizePositions(positions: CalculatedPosition[]): PositionSummary {
+export function summarizePositions(
+  positions: CalculatedPosition[],
+  solPriceUsd: number,
+): PositionSummary {
   const totalInvestedSol = positions.reduce((sum, position) => sum + position.entry.solInvested, 0);
   const totalBuyFeesSol = positions.reduce(
     (sum, position) => sum + position.entry.fees.buyPriority + position.entry.fees.buyBribe,
@@ -208,7 +212,6 @@ export function summarizePositions(positions: CalculatedPosition[]): PositionSum
   const profitSol = positions.reduce((sum, position) => sum + position.result.profitSol, 0);
   const profitUsd = positions.reduce((sum, position) => sum + position.result.profitUsd, 0);
   const costBasisSol = totalInvestedSol + totalBuyFeesSol;
-
   return {
     initialUsd: costBasisSol * solPriceUsd,
     multiplier: totalInvestedSol > 0 ? currentSol / totalInvestedSol : 0,
@@ -219,6 +222,7 @@ export function summarizePositions(positions: CalculatedPosition[]): PositionSum
     roiPercent: costBasisSol > 0 ? (profitSol / costBasisSol) * 100 : 0,
     totalFeesSol,
     totalInvestedSol,
+    totalInvestedUsd: totalInvestedSol * solPriceUsd,
     totalBuyFeesSol,
   };
 }

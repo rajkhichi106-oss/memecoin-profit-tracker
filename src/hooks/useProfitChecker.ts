@@ -9,10 +9,8 @@ import {
   type WalletTrade,
 } from "@/lib/market-data.functions";
 import {
-  calculateProfit,
   calculatePosition,
   DEFAULT_TARGETS,
-  formatCompactUsd,
   isValidSolanaAddress,
   parseCompactNumber,
   sumFees,
@@ -20,7 +18,6 @@ import {
   type CalculatedPosition,
   type PositionEntry,
   type PositionSummary,
-  type ProfitResult,
   type TargetRow,
   type TradeFees,
 } from "@/lib/profit";
@@ -159,7 +156,7 @@ export function useProfitChecker() {
   }, [activeEntries, currentMarketCap, solPrice]);
 
   const positionSummary: PositionSummary | null = useMemo(
-    () => (livePositions.length > 0 && solPrice ? summarizePositions(livePositions) : null),
+    () => (livePositions.length > 0 && solPrice ? summarizePositions(livePositions, solPrice) : null),
     [livePositions, solPrice],
   );
 
@@ -169,7 +166,7 @@ export function useProfitChecker() {
       const positions = activeEntries.map((entry) =>
         calculatePosition(entry, targetMarketCap, solPrice),
       );
-      return { targetMarketCap, positions, summary: summarizePositions(positions) };
+      return { targetMarketCap, positions, summary: summarizePositions(positions, solPrice) };
     });
   }, [activeEntries, solPrice]);
 
@@ -182,7 +179,7 @@ export function useProfitChecker() {
   const customTargetGroup = useMemo(() => {
     if (!customTargetMc || !solPrice || activeEntries.length === 0) return null;
     const positions = activeEntries.map((entry) => calculatePosition(entry, customTargetMc, solPrice));
-    return { targetMarketCap: customTargetMc, positions, summary: summarizePositions(positions) };
+    return { targetMarketCap: customTargetMc, positions, summary: summarizePositions(positions, solPrice) };
   }, [customTargetMc, activeEntries, solPrice]);
   const customTargetRow: TargetRow | null = customTargetGroup
     ? { targetMarketCap: customTargetGroup.targetMarketCap, ...customTargetGroup.summary }
@@ -197,11 +194,11 @@ export function useProfitChecker() {
     toast.success(`Entry #${positionEntries.filter((item) => item.tokenAddress === entry.tokenAddress).length + 1} saved`);
   }, [positionEntries]);
 
-  const makeEntry = useCallback((): PositionEntry | null => {
-    if (!token || !solInvested || !buyMarketCap) return null;
+  const makeEntry = useCallback((tokenAddress = token?.address): PositionEntry | null => {
+    if (!tokenAddress || !solInvested || !buyMarketCap) return null;
     return {
-      id: `${token.address}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
-      tokenAddress: token.address,
+      id: `${tokenAddress}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+      tokenAddress,
       entryMarketCap: buyMarketCap,
       solInvested,
       fees,
@@ -228,7 +225,7 @@ export function useProfitChecker() {
         const now = Date.now();
         if (token && lastFetch.current.ca === address && now - lastFetch.current.at < CACHE_TTL) {
           setError(null);
-          const entry = makeEntry();
+          const entry = makeEntry(token.address);
           if (entry) appendEntry(entry);
           return;
         }
@@ -271,7 +268,7 @@ export function useProfitChecker() {
         setLastUpdated(tokenRes.token.fetchedAt);
         lastFetch.current = { ca: address, at: Date.now() };
         if (mode === "check") {
-          const entry = makeEntry();
+          const entry = makeEntry(tokenRes.token.address);
           if (entry) appendEntry(entry);
         }
 

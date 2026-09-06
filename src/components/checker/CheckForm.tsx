@@ -1,4 +1,4 @@
-import { ClipboardPaste, Loader2, Rocket } from "lucide-react";
+import { ClipboardPaste, Loader2, Plus, Rocket } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,8 @@ type Props = {
   loading: boolean;
   error: string | null;
   onCheck: () => void;
+  onAddEntry: () => void;
+  canAddEntry: boolean;
   onPaste: () => void;
 };
 
@@ -80,6 +82,8 @@ export function CheckForm({
   loading,
   error,
   onCheck,
+  onAddEntry,
+  canAddEntry,
   onPaste,
 }: Props) {
   const caInvalid = ca.trim().length > 0 && !isValidSolanaAddress(ca);
@@ -272,17 +276,24 @@ export function CheckForm({
           </div>
         </div>
 
-        <Button type="submit" size="lg" disabled={loading} className="h-12 w-full text-sm">
-          {loading ? (
-            <>
-              <Loader2 className="size-5 animate-spin" /> Fetching live market data...
-            </>
-          ) : (
-            <>
-              <Rocket className="size-5" /> Check My Profit
-            </>
-          )}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" size="lg" disabled={loading} className="h-12 min-w-0 flex-1 text-sm">
+            {loading ? (
+              <>
+                <Loader2 className="size-5 animate-spin" /> Fetching live market data...
+              </>
+            ) : (
+              <>
+                <Rocket className="size-5" /> Check My Profit
+              </>
+            )}
+          </Button>
+          {canAddEntry ? (
+            <Button type="button" variant="secondary" size="lg" onClick={onAddEntry} disabled={loading} className="h-12 text-sm">
+              <Plus className="size-4" /> Add Entry
+            </Button>
+          ) : null}
+        </div>
 
         {error ? (
           <p className="rounded-xl border border-loss/40 bg-loss/10 px-3 py-2 text-xs text-loss">
