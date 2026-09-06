@@ -9,10 +9,8 @@ import {
   type WalletTrade,
 } from "@/lib/market-data.functions";
 import {
-  calculateProfit,
   calculatePosition,
   DEFAULT_TARGETS,
-  formatCompactUsd,
   isValidSolanaAddress,
   parseCompactNumber,
   sumFees,
@@ -197,11 +195,11 @@ export function useProfitChecker() {
     toast.success(`Entry #${positionEntries.filter((item) => item.tokenAddress === entry.tokenAddress).length + 1} saved`);
   }, [positionEntries]);
 
-  const makeEntry = useCallback((): PositionEntry | null => {
-    if (!token || !solInvested || !buyMarketCap) return null;
+  const makeEntry = useCallback((tokenAddress = token?.address): PositionEntry | null => {
+    if (!tokenAddress || !solInvested || !buyMarketCap) return null;
     return {
-      id: `${token.address}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
-      tokenAddress: token.address,
+      id: `${tokenAddress}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+      tokenAddress,
       entryMarketCap: buyMarketCap,
       solInvested,
       fees,
@@ -228,7 +226,7 @@ export function useProfitChecker() {
         const now = Date.now();
         if (token && lastFetch.current.ca === address && now - lastFetch.current.at < CACHE_TTL) {
           setError(null);
-          const entry = makeEntry();
+          const entry = makeEntry(token.address);
           if (entry) appendEntry(entry);
           return;
         }
@@ -271,7 +269,7 @@ export function useProfitChecker() {
         setLastUpdated(tokenRes.token.fetchedAt);
         lastFetch.current = { ca: address, at: Date.now() };
         if (mode === "check") {
-          const entry = makeEntry();
+          const entry = makeEntry(tokenRes.token.address);
           if (entry) appendEntry(entry);
         }
 

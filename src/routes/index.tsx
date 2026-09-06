@@ -118,6 +118,7 @@ function Index() {
             loading={c.loading}
             error={c.error}
             onCheck={c.check}
+            onAddEntry={c.addEntry}
             onPaste={() => void c.pasteFromClipboard()}
           />
           <WalletTracker usdInr={c.usdInr} onTrack={c.trackTrade} tick={tick} />
@@ -131,6 +132,7 @@ function Index() {
           {c.result && c.currentMarketCap && c.buyMarketCap && c.token ? (
             <ResultCard
               result={c.result}
+              positions={c.livePositions}
               currentMarketCap={c.currentMarketCap}
               buyMarketCap={c.buyMarketCap}
               marketCapMetric={c.token.marketCapMetric}
@@ -143,6 +145,7 @@ function Index() {
               setRefreshInterval={c.setRefreshInterval}
               refreshing={c.refreshing}
               onRefresh={c.refreshNow}
+              onAddEntry={c.addEntry}
               lastUpdated={c.lastUpdated}
               tick={tick}
             />
@@ -173,7 +176,9 @@ function Index() {
           {c.targets.length > 0 ? (
             <TargetSection
               targets={c.targets}
+              targetGroups={c.targetGroups}
               customTargetRow={c.customTargetRow}
+              customTargetGroup={c.customTargetGroup}
               usdInr={c.usdInr}
               feeSol={c.feeSol}
             />
