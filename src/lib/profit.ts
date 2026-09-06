@@ -208,6 +208,9 @@ export function summarizePositions(positions: CalculatedPosition[]): PositionSum
   const profitSol = positions.reduce((sum, position) => sum + position.result.profitSol, 0);
   const profitUsd = positions.reduce((sum, position) => sum + position.result.profitUsd, 0);
   const costBasisSol = totalInvestedSol + totalBuyFeesSol;
+  const solPriceUsd = positions[0]?.result.currentSol > 0
+    ? positions[0].result.currentUsd / positions[0].result.currentSol
+    : 0;
 
   return {
     initialUsd: costBasisSol * solPriceUsd,
