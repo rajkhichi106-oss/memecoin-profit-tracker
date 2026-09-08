@@ -102,8 +102,10 @@ function Index() {
             setBuyMcInput={c.setBuyMcInput}
             buyMcUnit={c.buyMcUnit}
             setBuyMcUnit={c.setBuyMcUnit}
-            customTarget={c.customTarget}
-            setCustomTarget={c.setCustomTarget}
+            targetMcInput={c.targetMcInput}
+            setTargetMcInput={c.setTargetMcInput}
+            targetMcUnit={c.targetMcUnit}
+            setTargetMcUnit={c.setTargetMcUnit}
             buyPriorityFee={c.buyPriorityFee}
             setBuyPriorityFee={c.setBuyPriorityFee}
             buyBribeFee={c.buyBribeFee}
