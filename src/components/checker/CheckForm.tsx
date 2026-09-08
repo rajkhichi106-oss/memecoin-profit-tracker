@@ -34,8 +34,10 @@ type Props = {
   setBuyMcInput: (v: string) => void;
   buyMcUnit: MarketCapUnit;
   setBuyMcUnit: (v: MarketCapUnit) => void;
-  customTarget: string;
-  setCustomTarget: (v: string) => void;
+  targetMcInput: string;
+  setTargetMcInput: (v: string) => void;
+  targetMcUnit: MarketCapUnit;
+  setTargetMcUnit: (v: MarketCapUnit) => void;
   buyPriorityFee: string;
   setBuyPriorityFee: (v: string) => void;
   buyBribeFee: string;
@@ -64,8 +66,10 @@ export function CheckForm({
   setBuyMcInput,
   buyMcUnit,
   setBuyMcUnit,
-  customTarget,
-  setCustomTarget,
+  targetMcInput,
+  setTargetMcInput,
+  targetMcUnit,
+  setTargetMcUnit,
   buyPriorityFee,
   setBuyPriorityFee,
   buyBribeFee,
@@ -83,7 +87,7 @@ export function CheckForm({
   onPaste,
 }: Props) {
   const caInvalid = ca.trim().length > 0 && !isValidSolanaAddress(ca);
-  const targetMc = parseCompactNumber(customTarget);
+  const targetMc = parseCompactNumber(`${targetMcInput}${targetMcUnit}`);
 
   return (
     <section id="checker" className="glass rounded-2xl p-4 sm:p-5">
@@ -192,13 +196,25 @@ export function CheckForm({
 
           <div className="space-y-1.5">
             <Label htmlFor="custom-target">Target Market Cap</Label>
-            <Input
-              id="custom-target"
-              value={customTarget}
-              onChange={(e) => setCustomTarget(e.target.value)}
-              placeholder="750K"
-              className="num h-11"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="custom-target"
+                value={targetMcInput}
+                onChange={(e) => setTargetMcInput(e.target.value)}
+                placeholder="750"
+                className="num h-11 flex-1"
+              />
+              <Select value={targetMcUnit} onValueChange={(v) => setTargetMcUnit(v as MarketCapUnit)}>
+                <SelectTrigger className="h-11 w-[78px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="K">K</SelectItem>
+                  <SelectItem value="M">M</SelectItem>
+                  <SelectItem value="B">B</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <p className="num text-[11px] text-muted-foreground">
               {targetMc ? `= ${formatCompactUsd(targetMc)}` : "Optional — your exit goal"}
             </p>
