@@ -35,7 +35,8 @@ export function useProfitChecker() {
   const [amountUnit, setAmountUnit] = useState<AmountUnit>("SOL");
   const [buyMcInput, setBuyMcInput] = useState("");
   const [buyMcUnit, setBuyMcUnit] = useState<MarketCapUnit>("K");
-  const [customTarget, setCustomTarget] = useState("");
+  const [targetMcInput, setTargetMcInput] = useState("");
+  const [targetMcUnit, setTargetMcUnit] = useState<MarketCapUnit>("M");
   const [buyPriorityFee, setBuyPriorityFee] = useState("");
   const [buyBribeFee, setBuyBribeFee] = useState("");
   const [sellPriorityFee, setSellPriorityFee] = useState("");
@@ -125,7 +126,10 @@ export function useProfitChecker() {
     );
   }, [solInvested, buyMarketCap, solPrice, fees]);
 
-  const customTargetMc = useMemo(() => parseCompactNumber(customTarget), [customTarget]);
+  const customTargetMc = useMemo(
+    () => parseCompactNumber(`${targetMcInput}${targetMcUnit}`),
+    [targetMcInput, targetMcUnit],
+  );
   const customTargetRow: TargetRow | null = useMemo(() => {
     if (!customTargetMc || !solInvested || !buyMarketCap || !solPrice) return null;
     return calculateTargetValue(customTargetMc, {
@@ -335,8 +339,10 @@ export function useProfitChecker() {
     setBuyMcInput,
     buyMcUnit,
     setBuyMcUnit,
-    customTarget,
-    setCustomTarget,
+    targetMcInput,
+    setTargetMcInput,
+    targetMcUnit,
+    setTargetMcUnit,
     buyPriorityFee,
     setBuyPriorityFee,
     buyBribeFee,
