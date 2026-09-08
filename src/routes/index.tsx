@@ -139,6 +139,7 @@ function Index() {
               displayCurrency={c.displayCurrency}
               setDisplayCurrency={c.setDisplayCurrency}
               feeSol={c.feeSol}
+               expectedTargetRow={c.customTargetRow}
               refreshInterval={c.refreshInterval}
               setRefreshInterval={c.setRefreshInterval}
               refreshing={c.refreshing}
