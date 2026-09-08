@@ -18,6 +18,7 @@ import {
   formatSol,
   formatUsd,
   timeAgo,
+  type TargetRow,
   type ProfitResult,
 } from "@/lib/profit";
 import type { RefreshOption } from "@/hooks/useProfitChecker";
@@ -32,6 +33,7 @@ type Props = {
   displayCurrency: string;
   setDisplayCurrency: (v: string) => void;
   feeSol: number;
+  expectedTargetRow: TargetRow | null;
   refreshInterval: RefreshOption;
   setRefreshInterval: (v: RefreshOption) => void;
   refreshing: boolean;
@@ -78,6 +80,7 @@ export function ResultCard({
   displayCurrency,
   setDisplayCurrency,
   feeSol,
+  expectedTargetRow,
   refreshInterval,
   setRefreshInterval,
   refreshing,
@@ -89,6 +92,7 @@ export function ResultCard({
   const tone = up ? "profit" : "loss";
   const inr = (usd: number) => (usdInr ? usd * usdInr : null);
   const profitInr = inr(result.profitUsd);
+  const expectedProfitInr = expectedTargetRow ? inr(expectedTargetRow.profitUsd) : null;
   const currencyOptions = [...new Set([...CURRENCY_CODES, ...Object.keys(fxRates)])].filter(
     (code) => code === "USD" || !!fxRates[code],
   );
@@ -117,25 +121,69 @@ export function ResultCard({
           </span>
         </div>
 
-        <div className="mt-3">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-             Active Net Profit — after fees ({displayCurrency})
-          </p>
-          <p
-            className={cn(
-              "num mt-0.5 text-3xl font-bold leading-tight sm:text-4xl",
-              up ? "text-profit" : "text-loss",
+        <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.72fr)] sm:items-start">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Active Net Profit — after fees ({displayCurrency})
+            </p>
+            <p
+              className={cn(
+                "num mt-0.5 text-3xl font-bold leading-tight sm:text-4xl",
+                up ? "text-profit" : "text-loss",
+              )}
+            >
+              {formatCurrency(result.profitUsd, displayCurrency, fxRates, { sign: true })}
+            </p>
+            <p className="num mt-1 text-sm text-muted-foreground">
+              {formatUsd(result.profitUsd, { sign: true })} USD •{" "}
+              {formatSol(result.profitSol, { sign: true })}
+              {profitInr !== null && displayCurrency !== "INR"
+                ? ` • ${formatInr(profitInr, { sign: true })}`
+                : ""}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-brand/35 bg-brand/5 px-3 py-2.5">
+            <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+              Expected Market Cap Profit
+            </p>
+            {expectedTargetRow ? (
+              <>
+                <p className="num mt-1 text-[11px] text-muted-foreground">
+                  At {formatCompactUsd(expectedTargetRow.targetMarketCap)}
+                </p>
+                <p
+                  className={cn(
+                    "num mt-0.5 text-xl font-bold leading-tight",
+                    expectedTargetRow.profitUsd >= 0 ? "text-profit" : "text-loss",
+                  )}
+                >
+                  {formatCurrency(expectedTargetRow.profitUsd, displayCurrency, fxRates, {
+                    sign: true,
+                  })}
+                </p>
+                <p className="num mt-1 text-[11px] text-muted-foreground">
+                  {formatUsd(expectedTargetRow.profitUsd, { sign: true })} USD •{" "}
+                  {formatSol(expectedTargetRow.profitSol, { sign: true })}
+                  {expectedProfitInr !== null && displayCurrency !== "INR"
+                    ? ` • ${formatInr(expectedProfitInr, { sign: true })}`
+                    : ""}
+                </p>
+                <p
+                  className={cn(
+                    "num mt-1 text-[11px] font-medium",
+                    expectedTargetRow.profitUsd >= 0 ? "text-profit" : "text-loss",
+                  )}
+                >
+                  {formatPercent(expectedTargetRow.roiPercent)} ROI
+                </p>
+              </>
+            ) : (
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Enter a target market cap to see the estimated net profit here.
+              </p>
             )}
-          >
-             {formatCurrency(result.profitUsd, displayCurrency, fxRates, { sign: true })}
-          </p>
-          <p className="num mt-1 text-sm text-muted-foreground">
-            {formatUsd(result.profitUsd, { sign: true })} USD •{" "}
-            {formatSol(result.profitSol, { sign: true })}
-            {profitInr !== null && displayCurrency !== "INR"
-              ? ` • ${formatInr(profitInr, { sign: true })}`
-              : ""}
-          </p>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
