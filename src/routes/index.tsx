@@ -41,6 +41,10 @@ const BENEFITS = [
 ];
 
 function Index() {
+  return <CheckerPage />;
+}
+
+function CheckerPage() {
   const c = useProfitChecker();
   const [tick, setTick] = useState(0);
 
