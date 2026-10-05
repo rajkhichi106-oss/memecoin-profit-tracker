@@ -26,7 +26,12 @@ type DexPair = {
   fdv?: number;
   marketCap?: number;
   volume?: { m5?: number; h1?: number; h6?: number; h24?: number };
-  priceChange?: { m5?: number; h1?: number; h6?: number; h24?: number };
+  priceChange?: {
+    m5?: number | undefined;
+    h1?: number | undefined;
+    h6?: number | undefined;
+    h24?: number | undefined;
+  };
   txns?: Record<string, { buys?: number; sells?: number } | undefined>;
   pairCreatedAt?: number;
   info?: {
@@ -73,7 +78,7 @@ async function dexGet<T>(path: string, ttlMs: number): Promise<T> {
   }
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const dexSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function endpointTokenAddress(path: string): string {
   const match = path.match(/\/(?:tokens|token-pairs)\/v1\/solana\/([^/?]+)/);
@@ -93,7 +98,7 @@ function retryAfterMs(header: string | null): number | null {
 async function waitForDexSlot(): Promise<void> {
   const slot = dexRequestQueue.then(async () => {
     const readyAt = Math.max(nextDexRequestAt, rateLimitUntil);
-    if (readyAt > Date.now()) await sleep(readyAt - Date.now());
+    if (readyAt > Date.now()) await dexSleep(readyAt - Date.now());
     nextDexRequestAt = Date.now() + 1_100;
   });
   dexRequestQueue = slot.catch(() => undefined);
@@ -337,12 +342,14 @@ export async function loadTokenData(
         const pair = await fetchPair(pinnedPair);
         if (pair && pairContainsToken(pair, address)) {
           const normalized = pairForToken(pair, address);
-          const token = normalized ? toTokenData(normalized, [normalized], address) : null;
-          if (token) {
-            const all = await fetchAllTokenPairs(address, 120_000).catch(() => [normalized]);
-            const matching = all.filter((candidate) => pairContainsToken(candidate, address));
-            const merged = toTokenData(normalized, matching.length ? matching : [normalized], address);
-            if (merged) return { ok: true, token: merged };
+          if (normalized) {
+            const token = toTokenData(normalized, [normalized], address);
+            if (token) {
+              const all = await fetchAllTokenPairs(address, 120_000).catch(() => [normalized]);
+              const matching = all.filter((candidate) => pairContainsToken(candidate, address));
+              const merged = toTokenData(normalized, matching.length ? matching : [normalized], address);
+              if (merged) return { ok: true, token: merged };
+            }
           }
         }
       } catch (error) {
