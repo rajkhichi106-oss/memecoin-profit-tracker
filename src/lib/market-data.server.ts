@@ -55,6 +55,7 @@ const inFlightDexRequests = new Map<string, Promise<unknown>>();
 let nextDexRequestAt = 0;
 let rateLimitUntil = 0;
 let consecutiveRateLimits = 0;
+let dexRequestQueue: Promise<void> = Promise.resolve();
 
 async function dexGet<T>(path: string, ttlMs: number): Promise<T> {
   const hit = respCache.get(path);
@@ -90,9 +91,13 @@ function retryAfterMs(header: string | null): number | null {
 }
 
 async function waitForDexSlot(): Promise<void> {
-  const readyAt = Math.max(nextDexRequestAt, rateLimitUntil);
-  if (readyAt > Date.now()) await sleep(readyAt - Date.now());
-  nextDexRequestAt = Date.now() + 1_100;
+  const slot = dexRequestQueue.then(async () => {
+    const readyAt = Math.max(nextDexRequestAt, rateLimitUntil);
+    if (readyAt > Date.now()) await sleep(readyAt - Date.now());
+    nextDexRequestAt = Date.now() + 1_100;
+  });
+  dexRequestQueue = slot.catch(() => undefined);
+  await slot;
 }
 
 async function requestDex<T>(path: string, ttlMs: number): Promise<T> {
@@ -267,7 +272,6 @@ function toTokenData(best: DexPair, all: DexPair[], fallbackAddress: string) {
   };
 }
 
-const NOT_FOUND = "Token not found on DEX Screener";
 const UNAVAILABLE = "Market data temporarily unavailable";
 const NOT_INDEXED = "Token not found or not indexed by DEX Screener yet.";
 const NO_TRADING_PAIR = "Token is indexed, but no trading pair is available yet.";
@@ -369,6 +373,7 @@ export async function loadTokenData(
     if (err instanceof DexRateLimited) return { ok: false, error: RATE_LIMITED };
     if (err instanceof DexHttpFailure) {
       console.error("[DEX Screener] API failure", { tokenAddress: address, status: err.status, reason: err.message });
+      if (err.status === 404) return { ok: false, error: NOT_INDEXED };
       return { ok: false, error: `DEX Screener API error (HTTP ${err.status}): ${err.message}` };
     }
     if (err instanceof DexUnavailable) {
