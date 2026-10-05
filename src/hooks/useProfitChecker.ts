@@ -55,6 +55,7 @@ export function useProfitChecker() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const lastFetch = useRef<{ ca: string; at: number }>({ ca: "", at: 0 });
+  const inFlightAddresses = useRef(new Set<string>());
   const reqId = useRef(0);
   const fxFetchedAt = useRef(0);
   const pinnedPair = useRef<{ ca: string; pairAddress: string }>({ ca: "", pairAddress: "" });
@@ -144,7 +145,7 @@ export function useProfitChecker() {
     async (mode: "check" | "refresh" | "auto") => {
       const address = ca.trim();
       if (!isValidSolanaAddress(address)) {
-        if (mode === "check") setError("That doesn't look like a valid Solana contract address.");
+        if (mode === "check") setError("Invalid Solana token address.");
         return;
       }
       if (mode === "check") {
@@ -162,6 +163,9 @@ export function useProfitChecker() {
           return;
         }
       }
+
+      if (inFlightAddresses.current.has(address)) return;
+      inFlightAddresses.current.add(address);
 
       // Abort-previous semantics: only the newest request may commit state.
       const id = ++reqId.current;
@@ -206,6 +210,7 @@ export function useProfitChecker() {
       } catch {
         if (!stale()) setError("Market data temporarily unavailable");
       } finally {
+        inFlightAddresses.current.delete(address);
         if (!stale()) {
           setLoading(false);
           setRefreshing(false);

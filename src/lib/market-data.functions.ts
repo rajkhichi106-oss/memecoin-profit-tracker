@@ -21,11 +21,13 @@ const SOL_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export const getTokenData = createServerFn({ method: "GET" })
   .inputValidator((input: { ca: string; pairAddress?: string }) => {
     const ca = (input?.ca ?? "").trim();
-    if (!SOL_ADDRESS_RE.test(ca)) throw new Error("INVALID_CA");
     const pairAddress = (input?.pairAddress ?? "").trim();
     return { ca, pairAddress: SOL_ADDRESS_RE.test(pairAddress) ? pairAddress : "" };
   })
   .handler(async ({ data }): Promise<TokenDataResult> => {
+    if (!SOL_ADDRESS_RE.test(data.ca)) {
+      return { ok: false, error: "Invalid Solana token address." };
+    }
     const { loadTokenData } = await import("./market-data.server");
     return loadTokenData(data.ca, data.pairAddress || undefined);
   });
