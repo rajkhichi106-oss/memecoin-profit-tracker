@@ -19,14 +19,19 @@ type DexPair = {
   labels?: string[];
   pairAddress?: string;
   baseToken?: { address?: string; name?: string; symbol?: string };
-  quoteToken?: { symbol?: string };
+  quoteToken?: { address?: string; name?: string; symbol?: string };
   priceUsd?: string;
   priceNative?: string;
   liquidity?: { usd?: number };
   fdv?: number;
   marketCap?: number;
   volume?: { m5?: number; h1?: number; h6?: number; h24?: number };
-  priceChange?: { m5?: number; h1?: number; h6?: number; h24?: number };
+  priceChange?: {
+    m5?: number | undefined;
+    h1?: number | undefined;
+    h6?: number | undefined;
+    h24?: number | undefined;
+  };
   txns?: Record<string, { buys?: number; sells?: number } | undefined>;
   pairCreatedAt?: number;
   info?: {
@@ -43,39 +48,128 @@ const num = (v: unknown): number | null => {
 
 class DexRateLimited extends Error {}
 class DexUnavailable extends Error {}
+class DexHttpFailure extends Error {
+  constructor(readonly status: number, reason: string) {
+    super(reason);
+  }
+}
 
-/** Short-lived response cache so repeated polls never hammer DexScreener. */
+/** Cache only successful responses and share requests for the same endpoint. */
 const respCache = new Map<string, { at: number; data: unknown }>();
+const inFlightDexRequests = new Map<string, Promise<unknown>>();
+let nextDexRequestAt = 0;
+let rateLimitUntil = 0;
+let consecutiveRateLimits = 0;
+let dexRequestQueue: Promise<void> = Promise.resolve();
 
 async function dexGet<T>(path: string, ttlMs: number): Promise<T> {
   const hit = respCache.get(path);
   const now = Date.now();
   if (hit && now - hit.at < ttlMs) return hit.data as T;
-  let res: Response;
+  const pending = inFlightDexRequests.get(path);
+  if (pending) return pending as Promise<T>;
+
+  const request = requestDex<T>(path, ttlMs);
+  inFlightDexRequests.set(path, request);
   try {
-    res = await fetch(`${DEX_ROOT}${path}`, { headers: { accept: "application/json" } });
-  } catch {
-    throw new DexUnavailable();
+    return await request;
+  } finally {
+    if (inFlightDexRequests.get(path) === request) inFlightDexRequests.delete(path);
   }
-  if (res.status === 429) {
-    // Serve slightly stale data instead of failing when we can.
-    if (hit) return hit.data as T;
-    throw new DexRateLimited();
+}
+
+const dexSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function endpointTokenAddress(path: string): string {
+  const match = path.match(/\/(?:tokens|token-pairs)\/v1\/solana\/([^/?]+)/);
+  if (match?.[1]) return decodeURIComponent(match[1]);
+  const query = path.split("?")[1];
+  return query ? new URLSearchParams(query).get("q") ?? "n/a" : "n/a";
+}
+
+function retryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const date = Date.parse(header);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
+}
+
+async function waitForDexSlot(): Promise<void> {
+  const slot = dexRequestQueue.then(async () => {
+    const readyAt = Math.max(nextDexRequestAt, rateLimitUntil);
+    if (readyAt > Date.now()) await dexSleep(readyAt - Date.now());
+    nextDexRequestAt = Date.now() + 1_100;
+  });
+  dexRequestQueue = slot.catch(() => undefined);
+  await slot;
+}
+
+async function requestDex<T>(path: string, ttlMs: number): Promise<T> {
+  const endpoint = `${DEX_ROOT}${path}`;
+  const tokenAddress = endpointTokenAddress(path);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await waitForDexSlot();
+    let res: Response;
+    try {
+      res = await fetch(endpoint, { headers: { accept: "application/json" } });
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error("[DEX Screener] request failed", {
+          endpoint,
+          tokenAddress,
+          status: "NETWORK_ERROR",
+          responseBody: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw new DexUnavailable("Network request failed.");
+    }
+
+    const responseBody = await res.text();
+    if (import.meta.env.DEV) {
+      console.info("[DEX Screener] response", {
+        endpoint,
+        tokenAddress,
+        status: res.status,
+        responseBody,
+      });
+    }
+
+    if (res.status === 429) {
+      consecutiveRateLimits += 1;
+      const exponentialDelay = Math.min(1_000 * 2 ** (attempt + consecutiveRateLimits - 1), 30_000);
+      const delay = Math.max(retryAfterMs(res.headers.get("Retry-After")) ?? 0, exponentialDelay);
+      rateLimitUntil = Math.max(rateLimitUntil, Date.now() + delay);
+      if (attempt < 2) continue;
+      throw new DexRateLimited("HTTP 429 — rate limit exceeded.");
+    }
+    consecutiveRateLimits = 0;
+
+    if (!res.ok) {
+      throw new DexHttpFailure(res.status, responseBody || res.statusText || "Unknown API error.");
+    }
+
+    let data: T;
+    try {
+      data = JSON.parse(responseBody) as T;
+    } catch {
+      throw new DexHttpFailure(res.status, "DEX Screener returned an invalid JSON response.");
+    }
+    const now = Date.now();
+    respCache.set(path, { at: now, data });
+    if (respCache.size > 120) {
+      for (const [key, value] of respCache) {
+        if (now - value.at > 120_000) respCache.delete(key);
+      }
+    }
+    return data;
   }
-  if (!res.ok) {
-    if (hit) return hit.data as T;
-    throw new DexUnavailable();
-  }
-  const data = (await res.json()) as T;
-  respCache.set(path, { at: now, data });
-  if (respCache.size > 120) {
-    for (const [k, v] of respCache) if (now - v.at > 120_000) respCache.delete(k);
-  }
-  return data;
+  throw new DexRateLimited("HTTP 429 — rate limit exceeded.");
 }
 
 const solanaOnly = (pairs: (DexPair | null | undefined)[] | null | undefined): DexPair[] =>
-  (pairs ?? []).filter((p): p is DexPair => !!p && p.chainId === CHAIN && !!p.priceUsd);
+  (pairs ?? []).filter((p): p is DexPair => !!p && p.chainId === CHAIN);
 
 /** GET /tokens/v1/{chain}/{address} — primary source for live token info. */
 async function fetchTokenPairs(address: string, ttlMs = 8_000): Promise<DexPair[]> {
@@ -101,15 +195,6 @@ async function fetchPair(pairAddress: string, ttlMs = 8_000): Promise<DexPair | 
   );
   const pair = json.pair ?? json.pairs?.[0] ?? null;
   return pair && pair.chainId === CHAIN ? pair : null;
-}
-
-/** GET /latest/dex/search?q= — fallback for names/symbols or missing token rows. */
-async function searchPairs(query: string, ttlMs = 15_000): Promise<DexPair[]> {
-  const json = await dexGet<{ pairs?: DexPair[] | null }>(
-    `/latest/dex/search?q=${encodeURIComponent(query)}`,
-    ttlMs,
-  );
-  return solanaOnly(json.pairs ?? []);
 }
 
 function byLiquidity(pairs: DexPair[]): DexPair[] {
@@ -192,9 +277,50 @@ function toTokenData(best: DexPair, all: DexPair[], fallbackAddress: string) {
   };
 }
 
-const NOT_FOUND = "Token not found on DEX Screener";
 const UNAVAILABLE = "Market data temporarily unavailable";
-const RATE_LIMITED = "Rate limited by DEX Screener — retrying shortly";
+const NOT_INDEXED = "Token not found or not indexed by DEX Screener yet.";
+const NO_TRADING_PAIR = "Token is indexed, but no trading pair is available yet.";
+const RATE_LIMITED = "DEX Screener rate limit reached (HTTP 429). Please retry shortly.";
+
+function pairContainsToken(pair: DexPair, address: string): boolean {
+  const target = address.toLowerCase();
+  return pair.baseToken?.address?.toLowerCase() === target || pair.quoteToken?.address?.toLowerCase() === target;
+}
+
+function pairForToken(pair: DexPair, address: string): DexPair | null {
+  const target = address.toLowerCase();
+  if (pair.baseToken?.address?.toLowerCase() === target) return pair;
+  if (pair.quoteToken?.address?.toLowerCase() !== target) return null;
+
+  const basePriceUsd = num(pair.priceUsd);
+  const basePriceInQuote = num(pair.priceNative);
+  const priceUsd = basePriceUsd !== null && basePriceInQuote !== null && basePriceInQuote > 0
+    ? basePriceUsd / basePriceInQuote
+    : null;
+  const invertChange = (change: number | undefined) => {
+    if (change === undefined || !Number.isFinite(change) || change <= -100) return undefined;
+    return ((1 / (1 + change / 100)) - 1) * 100;
+  };
+
+  return {
+    ...pair,
+    baseToken: pair.quoteToken,
+    quoteToken: pair.baseToken,
+    priceUsd: priceUsd === null ? undefined : String(priceUsd),
+    priceNative: basePriceInQuote === null || basePriceInQuote <= 0 ? undefined : String(1 / basePriceInQuote),
+    marketCap: undefined,
+    fdv: undefined,
+    priceChange: pair.priceChange
+      ? {
+          m5: invertChange(pair.priceChange.m5),
+          h1: invertChange(pair.priceChange.h1),
+          h6: invertChange(pair.priceChange.h6),
+          h24: invertChange(pair.priceChange.h24),
+        }
+      : undefined,
+    info: undefined,
+  };
+}
 
 /**
  * Loads live token data for a Solana token.
@@ -205,36 +331,63 @@ export async function loadTokenData(
   ca: string,
   pinnedPair?: string | undefined,
 ): Promise<TokenDataResult> {
+  const address = ca.trim();
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+    return { ok: false, error: "Invalid Solana token address." };
+  }
+
   try {
     if (pinnedPair) {
-      const pair = await fetchPair(pinnedPair);
-      if (pair) {
-        const token = toTokenData(pair, [pair], ca);
-        if (token) {
-          // Keep the known pool list without re-fetching it every poll.
-          const all = await fetchAllTokenPairs(token.address, 120_000).catch(() => [pair]);
-          const merged = toTokenData(pair, all.length ? all : [pair], ca)!;
-          return { ok: true, token: merged };
+      try {
+        const pair = await fetchPair(pinnedPair);
+        if (pair && pairContainsToken(pair, address)) {
+          const normalized = pairForToken(pair, address);
+          if (normalized) {
+            const token = toTokenData(normalized, [normalized], address);
+            if (token) {
+              const all = await fetchAllTokenPairs(address, 120_000).catch(() => [normalized]);
+              const matching = all.filter((candidate) => pairContainsToken(candidate, address));
+              const merged = toTokenData(normalized, matching.length ? matching : [normalized], address);
+              if (merged) return { ok: true, token: merged };
+            }
+          }
         }
+      } catch (error) {
+        if (error instanceof DexRateLimited) throw error;
+        if (!(error instanceof DexHttpFailure) || error.status !== 404) throw error;
       }
     }
 
-    let pairs = await fetchTokenPairs(ca).catch((err) => {
-      if (err instanceof DexRateLimited) throw err;
-      return [] as DexPair[];
-    });
-    if (pairs.length === 0) pairs = await searchPairs(ca).catch(() => [] as DexPair[]);
-    if (pairs.length === 0) return { ok: false, error: NOT_FOUND };
+    const pairs = await fetchTokenPairs(address, 15_000);
+    if (pairs.length === 0) return { ok: false, error: NOT_INDEXED };
 
-    const target = ca.toLowerCase();
-    const matching = pairs.filter((p) => p.baseToken?.address?.toLowerCase() === target);
-    const pool = matching.length ? matching : pairs;
-    const best = bestPair(pool)!;
-    const token = toTokenData(best, pool, ca);
-    if (!token) return { ok: false, error: UNAVAILABLE };
+    const matching = pairs.filter((pair) => pairContainsToken(pair, address));
+    if (matching.length === 0) return { ok: false, error: NOT_INDEXED };
+
+    const baseMatches = matching.filter((pair) => pair.baseToken?.address?.toLowerCase() === address.toLowerCase());
+    const relevantPairs = (baseMatches.length ? baseMatches : matching)
+      .map((pair) => pairForToken(pair, address))
+      .filter((pair): pair is DexPair => pair !== null);
+    const pricedPairs = relevantPairs.filter((pair) => num(pair.priceUsd) !== null);
+    if (pricedPairs.length === 0) return { ok: false, error: NO_TRADING_PAIR };
+
+    const best = bestPair(pricedPairs);
+    if (!best) return { ok: false, error: NO_TRADING_PAIR };
+    const token = toTokenData(best, pricedPairs, address);
+    if (!token) return { ok: false, error: NO_TRADING_PAIR };
     return { ok: true, token };
   } catch (err) {
     if (err instanceof DexRateLimited) return { ok: false, error: RATE_LIMITED };
+    if (err instanceof DexHttpFailure) {
+      console.error("[DEX Screener] API failure", { tokenAddress: address, status: err.status, reason: err.message });
+      if (err.status === 404) return { ok: false, error: NOT_INDEXED };
+      return { ok: false, error: `DEX Screener API error (HTTP ${err.status}): ${err.message}` };
+    }
+    if (err instanceof DexUnavailable) {
+      console.error("[DEX Screener] network failure", { tokenAddress: address, reason: err.message });
+      return { ok: false, error: `${UNAVAILABLE} (network failure).` };
+    }
+    console.error("[DEX Screener] unexpected lookup failure", { tokenAddress: address, error: err });
     return { ok: false, error: UNAVAILABLE };
   }
 }
