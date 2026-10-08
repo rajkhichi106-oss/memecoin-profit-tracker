@@ -188,16 +188,10 @@ export function ResultCard({
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Stat
-            label="Current Position Value"
-             value={formatCurrency(result.currentUsd, displayCurrency, fxRates)}
-            sub={`${formatUsd(result.currentUsd)} USD • ${formatSol(result.currentSol)}`}
-          />
-          <Stat
             label="Total Fees"
             value={formatSol(result.totalFeesSol)}
             sub="buy + sell, fixed"
           />
-
           <Stat label="ROI" value={formatPercent(result.roiPercent)} tone={tone} />
           <Stat label="Multiplier" value={`${result.multiplier.toFixed(2)}×`} />
           <Stat
