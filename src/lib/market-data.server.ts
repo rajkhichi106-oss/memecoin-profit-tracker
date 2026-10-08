@@ -18,8 +18,8 @@ type DexPair = {
   url?: string;
   labels?: string[];
   pairAddress?: string;
-  baseToken?: { address?: string; name?: string; symbol?: string };
-  quoteToken?: { address?: string; name?: string; symbol?: string };
+  baseToken?: { address?: string; name?: string; symbol?: string } | undefined;
+  quoteToken?: { address?: string; name?: string; symbol?: string } | undefined;
   priceUsd?: string;
   priceNative?: string;
   liquidity?: { usd?: number };
@@ -31,7 +31,7 @@ type DexPair = {
     h1?: number | undefined;
     h6?: number | undefined;
     h24?: number | undefined;
-  };
+  } | undefined;
   txns?: Record<string, { buys?: number; sells?: number } | undefined>;
   pairCreatedAt?: number;
   info?: {
@@ -214,7 +214,12 @@ const pairLabel = (p: DexPair) =>
     p.labels?.length ? ` ${p.labels.join(" ")}` : ""
   }`;
 
-const tf = (o: { m5?: number; h1?: number; h6?: number; h24?: number } | undefined) => ({
+const tf = (o: {
+  m5?: number | undefined;
+  h1?: number | undefined;
+  h6?: number | undefined;
+  h24?: number | undefined;
+} | undefined) => ({
   m5: num(o?.m5),
   h1: num(o?.h1),
   h6: num(o?.h6),
