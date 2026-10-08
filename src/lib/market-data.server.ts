@@ -20,11 +20,11 @@ type DexPair = {
   pairAddress?: string;
   baseToken?: { address?: string; name?: string; symbol?: string } | undefined;
   quoteToken?: { address?: string; name?: string; symbol?: string } | undefined;
-  priceUsd?: string;
-  priceNative?: string;
+  priceUsd?: string | undefined;
+  priceNative?: string | undefined;
   liquidity?: { usd?: number };
-  fdv?: number;
-  marketCap?: number;
+  fdv?: number | undefined;
+  marketCap?: number | undefined;
   volume?: { m5?: number; h1?: number; h6?: number; h24?: number };
   priceChange?: {
     m5?: number | undefined;
@@ -38,7 +38,7 @@ type DexPair = {
     imageUrl?: string;
     websites?: { url?: string }[];
     socials?: { type?: string; platform?: string; url?: string }[];
-  };
+  } | undefined;
 };
 
 const num = (v: unknown): number | null => {
