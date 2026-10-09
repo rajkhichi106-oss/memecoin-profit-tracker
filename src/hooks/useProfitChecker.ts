@@ -28,6 +28,7 @@ export type RefreshOption = 0 | 15 | 30 | 60 | 300;
 
 const CACHE_TTL = 8_000;
 const FX_TTL = 300_000;
+const SOL_TTL = 60_000;
 
 export function useProfitChecker() {
   const [ca, setCa] = useState("");
@@ -51,34 +52,40 @@ export function useProfitChecker() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
-  const [refreshInterval, setRefreshInterval] = useState<RefreshOption>(30);
+  const [refreshInterval, setRefreshInterval] = useState<RefreshOption>(15);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const lastFetch = useRef<{ ca: string; at: number }>({ ca: "", at: 0 });
   const inFlightAddresses = useRef(new Set<string>());
   const reqId = useRef(0);
-  const fxFetchedAt = useRef(0);
   const pinnedPair = useRef<{ ca: string; pairAddress: string }>({ ca: "", pairAddress: "" });
 
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
 
-  // Pull SOL price + USD/INR early so conversions work before the first check.
+  // Refresh conversion rates independently so token lookups never wait on them.
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      const [sol, fx] = await Promise.all([getSolPrice({}), getFxRate({})]);
-      if (cancelled) return;
-      if (sol.ok) setSolPrice(sol.priceUsd);
-      if (fx.ok) {
-        setUsdInr(fx.usdInr);
-        setFxRates(fx.rates);
-        fxFetchedAt.current = Date.now();
+    const updateSolPrice = async () => {
+      const result = await getSolPrice({});
+      if (!cancelled && result.ok) setSolPrice(result.priceUsd);
+    };
+    const updateFxRates = async () => {
+      const result = await getFxRate({});
+      if (!cancelled && result.ok) {
+        setUsdInr(result.usdInr);
+        setFxRates(result.rates);
       }
-    })();
+    };
+    void updateSolPrice();
+    void updateFxRates();
+    const solTimer = window.setInterval(() => void updateSolPrice(), SOL_TTL);
+    const fxTimer = window.setInterval(() => void updateFxRates(), FX_TTL);
     return () => {
       cancelled = true;
+      window.clearInterval(solTimer);
+      window.clearInterval(fxTimer);
     };
   }, []);
 
@@ -176,25 +183,13 @@ export function useProfitChecker() {
       setError(null);
       try {
         const pinned = pinnedPair.current.ca === address ? pinnedPair.current.pairAddress : "";
-        const needFx = !usdInr || Date.now() - fxFetchedAt.current > FX_TTL;
-        const [tokenRes, solRes, fxRes] = await Promise.all([
-          getTokenData({ data: { ca: address, pairAddress: pinned } }),
-          getSolPrice({}),
-          needFx ? getFxRate({}) : Promise.resolve(null),
-        ]);
+        const tokenRes = await getTokenData({ data: { ca: address, pairAddress: pinned } });
         if (stale()) return;
 
         if (!tokenRes.ok) {
           setError(tokenRes.error);
           return;
         }
-        if (fxRes?.ok) {
-          setUsdInr(fxRes.usdInr);
-          setFxRates(fxRes.rates);
-          fxFetchedAt.current = Date.now();
-        }
-        if (solRes.ok) setSolPrice(solRes.priceUsd);
-
         // Pin the chosen pair for the rest of the session (unless it goes invalid).
         if (tokenRes.token.pairAddress) {
           pinnedPair.current = { ca: address, pairAddress: tokenRes.token.pairAddress };
@@ -217,7 +212,7 @@ export function useProfitChecker() {
         }
       }
     },
-    [ca, amountValue, buyMarketCap, token, usdInr],
+    [ca, amountValue, buyMarketCap, token],
   );
 
   // Debounced auto-fetch: typing/pasting a CA loads market data without a click.

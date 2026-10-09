@@ -57,6 +57,7 @@ class DexHttpFailure extends Error {
 /** Cache only successful responses and share requests for the same endpoint. */
 const respCache = new Map<string, { at: number; data: unknown }>();
 const inFlightDexRequests = new Map<string, Promise<unknown>>();
+const tokenPairsMetaCache = new Map<string, { at: number; pairs: DexPair[] }>();
 let nextDexRequestAt = 0;
 let rateLimitUntil = 0;
 let consecutiveRateLimits = 0;
@@ -179,12 +180,6 @@ async function fetchTokenPairs(address: string, ttlMs = 8_000): Promise<DexPair[
   );
   const arr = Array.isArray(json) ? json : (json.pairs ?? []);
   return solanaOnly(arr);
-}
-
-/** GET /token-pairs/v1/{chain}/{address} — all pools for a token. */
-async function fetchAllTokenPairs(address: string, ttlMs = 30_000): Promise<DexPair[]> {
-  const json = await dexGet<DexPair[]>(`/token-pairs/v1/${CHAIN}/${address}`, ttlMs);
-  return solanaOnly(Array.isArray(json) ? json : []);
 }
 
 /** GET /latest/dex/pairs/{chain}/{pairId} — refresh the pinned pair only. */
@@ -350,9 +345,9 @@ export async function loadTokenData(
           if (normalized) {
             const token = toTokenData(normalized, [normalized], address);
             if (token) {
-              const all = await fetchAllTokenPairs(address, 120_000).catch(() => [normalized]);
-              const matching = all.filter((candidate) => pairContainsToken(candidate, address));
-              const merged = toTokenData(normalized, matching.length ? matching : [normalized], address);
+              const cachedMeta = tokenPairsMetaCache.get(address.toLowerCase());
+              const matching = cachedMeta?.pairs.filter((candidate) => pairContainsToken(candidate, address));
+              const merged = toTokenData(normalized, matching?.length ? matching : [normalized], address);
               if (merged) return { ok: true, token: merged };
             }
           }
@@ -378,6 +373,7 @@ export async function loadTokenData(
 
     const best = bestPair(pricedPairs);
     if (!best) return { ok: false, error: NO_TRADING_PAIR };
+    tokenPairsMetaCache.set(address.toLowerCase(), { at: Date.now(), pairs: pricedPairs });
     const token = toTokenData(best, pricedPairs, address);
     if (!token) return { ok: false, error: NO_TRADING_PAIR };
     return { ok: true, token };
