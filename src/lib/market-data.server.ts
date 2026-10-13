@@ -100,7 +100,7 @@ async function waitForDexSlot(): Promise<void> {
   const slot = dexRequestQueue.then(async () => {
     const readyAt = Math.max(nextDexRequestAt, rateLimitUntil);
     if (readyAt > Date.now()) await dexSleep(readyAt - Date.now());
-    nextDexRequestAt = Date.now() + 1_100;
+    nextDexRequestAt = Date.now() + 1_000;
   });
   dexRequestQueue = slot.catch(() => undefined);
   await slot;

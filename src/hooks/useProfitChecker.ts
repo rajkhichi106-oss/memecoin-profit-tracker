@@ -220,7 +220,7 @@ export function useProfitChecker() {
     const address = ca.trim();
     if (!isValidSolanaAddress(address)) return;
     if (lastFetch.current.ca === address && Date.now() - lastFetch.current.at < CACHE_TTL) return;
-    const id = window.setTimeout(() => void runFetch("auto"), 550);
+    const id = window.setTimeout(() => void runFetch("auto"), 250);
     return () => window.clearTimeout(id);
   }, [ca, runFetch]);
 
