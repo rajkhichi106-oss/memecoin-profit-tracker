@@ -58,6 +58,7 @@ export function useProfitChecker() {
   const lastFetch = useRef<{ ca: string; at: number }>({ ca: "", at: 0 });
   const inFlightAddresses = useRef(new Set<string>());
   const reqId = useRef(0);
+  const fxFetchedAt = useRef(0);
   const pinnedPair = useRef<{ ca: string; pairAddress: string }>({ ca: "", pairAddress: "" });
 
   useEffect(() => {
@@ -72,10 +73,12 @@ export function useProfitChecker() {
       if (!cancelled && result.ok) setSolPrice(result.priceUsd);
     };
     const updateFxRates = async () => {
+      if (fxFetchedAt.current && Date.now() - fxFetchedAt.current < FX_TTL) return;
       const result = await getFxRate({});
       if (!cancelled && result.ok) {
         setUsdInr(result.usdInr);
         setFxRates(result.rates);
+        fxFetchedAt.current = Date.now();
       }
     };
     void updateSolPrice();
@@ -220,7 +223,7 @@ export function useProfitChecker() {
     const address = ca.trim();
     if (!isValidSolanaAddress(address)) return;
     if (lastFetch.current.ca === address && Date.now() - lastFetch.current.at < CACHE_TTL) return;
-    const id = window.setTimeout(() => void runFetch("auto"), 550);
+    const id = window.setTimeout(() => void runFetch("auto"), 250);
     return () => window.clearTimeout(id);
   }, [ca, runFetch]);
 
