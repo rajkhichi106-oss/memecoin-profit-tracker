@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+body{width:320px;margin:0;padding:12px;background:#0b0f1a;color:#e6f1ff;font:12px system-ui,sans-serif}
+h1{font-size:15px;margin:0 0 8px}.k{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.c{background:#121a2b;border:1px solid #1f2a44;border-radius:8px;padding:8px}.c b{display:block;font-size:15px}
+.up{color:#3cf0a0}.dn{color:#ff5470}.mut{color:#8aa0c0}
+table{width:100%;border-collapse:collapse}td{padding:4px 2px;border-bottom:1px solid #1f2a44}
+input,button{background:#121a2b;border:1px solid #1f2a44;color:#e6f1ff;border-radius:6px;padding:5px}
+button{cursor:pointer;font-weight:700}
+</style></head><body>
+<h1>Paper Trader · Axiom</h1>
+<div class="k">
+  <div class="c"><span class="mut">Balance</span><b id="bal">-</b></div>
+  <div class="c"><span class="mut">Win rate</span><b id="wr">-</b></div>
+  <div class="c"><span class="mut">Total P&L (SOL)</span><b id="ps">-</b></div>
+  <div class="c"><span class="mut">Total P&L (INR)</span><b id="pi">-</b></div>
+</div>
+<div style="display:flex;gap:6px;margin-bottom:10px"><input id="start" type="number" value="10" step="1" style="flex:1"><button id="reset">Reset balance</button></div>
+<div class="mut" style="margin-bottom:4px">Trade journal</div>
+<table id="hist"></table>
+<script src="popup.js"></script>
+</body></html>
