@@ -39,7 +39,7 @@ async function getMarket(address) {
     const d = await throttledFetch(`https://api.dexscreener.com/tokens/v1/solana/${address}`, 4000);
     pair = pickPair(Array.isArray(d) ? d : [], address);
   }
-  if (!pair) throw new Error("Token not found or not indexed by DEX Screener yet.");
+  if (!pair) return getMarketJupiter(address);
   const sol = await getSolUsd();
   return {
     name: pair.baseToken?.name,
@@ -48,6 +48,30 @@ async function getMarket(address) {
     priceUsd: Number(pair.priceUsd) || 0,
     mc: pair.marketCap || pair.fdv || 0,
     dex: pair.dexId,
+    solUsd: sol,
+    usdInr: await getUsdInr(),
+    t: Date.now(),
+  };
+}
+
+// Bonding-curve (pre-DEX) tokens are missing from DEX Screener; Jupiter still prices them.
+async function getMarketJupiter(address) {
+  let t = null;
+  try {
+    const list = await throttledFetch(`https://lite-api.jup.ag/tokens/v2/search?query=${address}`, 8000);
+    t = (Array.isArray(list) ? list : []).find((x) => x.id === address);
+  } catch (e) {
+    throw new Error("Token not found or not indexed by DEX Screener yet.");
+  }
+  if (!t) throw new Error("Token not found or not indexed by DEX Screener yet.");
+  const sol = await getSolUsd();
+  return {
+    name: t.name,
+    symbol: t.symbol,
+    token: address,
+    priceUsd: Number(t.usdPrice) || 0,
+    mc: Number(t.mcap ?? t.fdv) || 0,
+    dex: "Jupiter",
     solUsd: sol,
     usdInr: await getUsdInr(),
     t: Date.now(),
