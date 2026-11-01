@@ -1,6 +1,6 @@
 (() => {
   const ADDR = /[1-9A-HJ-NP-Za-km-z]{32,44}/;
-  const S = { balance: 10, fees: { bp: 0.001, bb: 0.001, sp: 0.001, sb: 0.001 }, positions: {}, history: [], pos: null, min: false };
+  const S = { balance: 10, fees: { bp: 0.001, bb: 0.001, sp: 0.001, sb: 0.001 }, positions: {}, history: [], pos: null, min: false, charts: {} };
   let market = null, address = null, err = "";
 
   const fmt = (n, d = 4) => (isFinite(n) ? Number(n).toLocaleString("en-IN", { maximumFractionDigits: d }) : "-");
@@ -18,6 +18,39 @@
   el.id = "mpt-hud";
   document.documentElement.appendChild(el);
 
+  // Market-cap history for the live chart: one sample per token every 30s, 24h window.
+  function recordChart(addr, mc) {
+    if (!(mc > 0)) return;
+    S.charts = S.charts || {};
+    const arr = S.charts[addr] || (S.charts[addr] = []);
+    const now = Date.now();
+    if (arr.length && now - arr[arr.length - 1][0] < 30000) return;
+    arr.push([now, mc]);
+    while (arr.length && now - arr[0][0] > 86400000) arr.shift();
+    if (arr.length > 2880) arr.splice(0, arr.length - 2880);
+    save();
+  }
+
+  function sparkline(arr) {
+    const w = 270, h = 44;
+    const mcs = arr.map((p) => p[1]);
+    const lo = Math.min(...mcs), hi = Math.max(...mcs), span = hi - lo || 1;
+    const step = w / Math.max(1, arr.length - 1);
+    const pts = arr
+      .map((p, i) => `${(i * step).toFixed(1)},${(h - 4 - ((p[1] - lo) / span) * (h - 8)).toFixed(1)}`)
+      .join(" ");
+    const cls = mcs[mcs.length - 1] >= mcs[0] ? "up" : "dn";
+    return `<svg class="${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}"/></svg>`;
+  }
+
+  function chartHtml() {
+    const arr = (S.charts || {})[address];
+    if (!arr || arr.length < 2) return "";
+    const mins = Math.round((Date.now() - arr[0][0]) / 60000);
+    const win = mins >= 60 ? (mins / 60).toFixed(1).replace(/\.0$/, "") + "h" : mins + "m";
+    return `<div class="chart"><div class="row mut"><span>MC trend</span><span>${win}</span></div>${sparkline(arr)}</div>`;
+  }
+
   function render() {
     el.className = S.min ? "min" : "";
     if (S.pos) Object.assign(el.style, { left: S.pos.x + "px", top: S.pos.y + "px", right: "auto" });
@@ -30,12 +63,14 @@
         <div class="row mut"><span>Entry ${mcFmt(p.entryMc)} → ${mcFmt(market.mc)}</span><span>${fmt(p.sol)} SOL in</span></div>`;
     }
     const headPnl = p && market ? (() => { const r = calc(p); return `<b class="${r.net >= 0 ? "up" : "dn"}">${r.net >= 0 ? "+" : ""}₹${fmt(r.net * market.solUsd * market.usdInr, 0)}</b>`; })() : "";
+    const chart = address && chartHtml();
     el.innerHTML = `
       <div class="h"><span>Paper Trader ${headPnl}</span><button data-a="min">${S.min ? "▢" : "—"}</button></div>
       <div class="b">
         <div class="row"><span>${market ? `<b>${market.symbol}</b> <span class="mut">${market.dex}</span>` : '<span class="mut">Open a token page</span>'}</span>
           <span>${market ? "MC " + mcFmt(market.mc) : ""}</span></div>
         ${err ? `<div class="err">${err}</div>` : ""}
+        ${chart}
         <div class="row mut"><span>Balance</span><span>${fmt(S.balance)} SOL</span></div>
         ${pnl}
         <div class="g">${[0.1, 0.5, 1, 2].map((v) => `<button class="btn buy" data-buy="${v}">${v}</button>`).join("")}</div>
@@ -114,7 +149,7 @@
     chrome.runtime.sendMessage({ type: "market", address }, (res) => {
       busy = false;
       if (chrome.runtime.lastError) return;
-      if (res?.ok) { if (address === a) { market = res.data; err = ""; } }
+      if (res?.ok) { if (address === a) { market = res.data; err = ""; recordChart(a, market.mc); } }
       else err = res?.error || "Market data temporarily unavailable";
       render();
     });
