@@ -82,7 +82,7 @@
           <input data-f="sp" type="number" step="0.0001" value="${S.fees.sp}" title="Sell priority fee (SOL)">
           <input data-f="sb" type="number" step="0.0001" value="${S.fees.sb}" title="Sell bribe fee (SOL)">
         </div>
-        <div class="mut" style="font-size:10px">Fees: buy prio / buy bribe / sell prio / sell bribe. Simulated trades only — market data from DEX Screener.</div>
+        <div class="mut" style="font-size:10px">Fees: buy prio / buy bribe / sell prio / sell bribe. Simulated trades only — market data from DEX Screener / Jupiter.</div>
       </div>`;
   }
 
