@@ -2,9 +2,9 @@
 const cache = new Map();
 let lastCall = 0;
 
-async function throttledFetch(url, ttl) {
+async function throttledFetch(url, ttl, force = false) {
   const hit = cache.get(url);
-  if (hit && Date.now() - hit.t < ttl) return hit.data;
+  if (!force && hit && Date.now() - hit.t < ttl) return hit.data;
   const wait = Math.max(0, lastCall + 1100 - Date.now());
   if (wait) await new Promise((r) => setTimeout(r, wait));
   lastCall = Date.now();
@@ -28,15 +28,15 @@ function pickPair(pairs, address) {
   return list.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
 }
 
-async function getMarket(address) {
+async function getMarket(address, force = false) {
   // Axiom URLs usually carry the pair address; try pair first, then token.
   let pair = null;
   try {
-    const d = await throttledFetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${address}`, 4000);
+    const d = await throttledFetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${address}`, 4000, force);
     pair = pickPair(d.pairs || (d.pair ? [d.pair] : []), address);
   } catch (e) {}
   if (!pair) {
-    const d = await throttledFetch(`https://api.dexscreener.com/tokens/v1/solana/${address}`, 4000);
+    const d = await throttledFetch(`https://api.dexscreener.com/tokens/v1/solana/${address}`, 4000, force);
     pair = pickPair(Array.isArray(d) ? d : [], address);
   }
   if (!pair) return getMarketJupiter(address);
@@ -58,7 +58,7 @@ async function getMarket(address) {
 async function getMarketJupiter(address) {
   let t = null;
   try {
-    const list = await throttledFetch(`https://lite-api.jup.ag/tokens/v2/search?query=${address}`, 8000);
+    const list = await throttledFetch(`https://lite-api.jup.ag/tokens/v2/search?query=${address}`, 8000, force);
     t = (Array.isArray(list) ? list : []).find((x) => x.id === address);
   } catch (e) {
     throw new Error("Token not found or not indexed by DEX Screener yet.");
@@ -99,7 +99,7 @@ async function getUsdInr() {
 
 chrome.runtime.onMessage.addListener((msg, _s, reply) => {
   if (msg.type === "market") {
-    getMarket(msg.address).then((data) => reply({ ok: true, data }), (e) => reply({ ok: false, error: e.message }));
+    getMarket(msg.address, Boolean(msg.force)).then((data) => reply({ ok: true, data }), (e) => reply({ ok: false, error: e.message }));
     return true;
   }
 });
