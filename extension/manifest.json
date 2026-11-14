@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Memecoin Paper Trader for Axiom",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Paper trade Solana memecoins on Axiom with live market cap, fees and INR profit.",
   "permissions": ["storage"],
   "host_permissions": [
