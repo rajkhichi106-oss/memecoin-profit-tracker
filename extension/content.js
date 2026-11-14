@@ -1,7 +1,7 @@
 (() => {
   const ADDR = /[1-9A-HJ-NP-Za-km-z]{32,44}/;
   const S = { balance: 10, fees: { bp: 0.001, bb: 0.001, sp: 0.001, sb: 0.001 }, positions: {}, history: [], pos: null, min: false, charts: {} };
-  let market = null, address = null, err = "";
+  let market = null, address = null, err = "", busy = false, refreshQueued = false;
 
   const fmt = (n, d = 4) => (isFinite(n) ? Number(n).toLocaleString("en-IN", { maximumFractionDigits: d }) : "-");
   const mcFmt = (n) => (n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : (n / 1e3).toFixed(1) + "K");
@@ -65,7 +65,7 @@
     const headPnl = p && market ? (() => { const r = calc(p); return `<b class="${r.net >= 0 ? "up" : "dn"}">${r.net >= 0 ? "+" : ""}₹${fmt(r.net * market.solUsd * market.usdInr, 0)}</b>`; })() : "";
     const chart = address && chartHtml();
     el.innerHTML = `
-      <div class="h"><span>Paper Trader ${headPnl}</span><button data-a="min">${S.min ? "▢" : "—"}</button></div>
+      <div class="h"><span>Paper Trader ${headPnl}</span><span class="tools"><button data-a="refresh" title="Refresh token data" aria-label="Refresh token data" ${busy ? 'class="spinning"' : ""}>↻</button><button data-a="min" title="${S.min ? "Expand panel" : "Minimize panel"}" aria-label="${S.min ? "Expand panel" : "Minimize panel"}">${S.min ? "▢" : "—"}</button></span></div>
       <div class="b">
         <div class="row"><span>${market ? `<b>${market.symbol}</b> <span class="mut">${market.dex}</span>` : '<span class="mut">Open a token page</span>'}</span>
           <span>${market ? "MC " + mcFmt(market.mc) : ""}</span></div>
@@ -117,6 +117,7 @@
   el.addEventListener("click", (e) => {
     const t = e.target.closest("button"); if (!t) return;
     if (t.dataset.a === "min") { S.min = !S.min; save(); render(); }
+    if (t.dataset.a === "refresh") refresh(true);
     if (t.dataset.buy) buy(Number(t.dataset.buy));
     if (t.dataset.a === "custom") buy(Number(el.querySelector("#mpt-amt").value));
     if (t.dataset.sell) sell(Number(t.dataset.sell));
@@ -140,18 +141,29 @@
     return m ? m[0] : null;
   }
 
-  let busy = false;
-  async function refresh() {
+  function refresh(force = false) {
     const a = detect();
     if (a !== address) { address = a; market = null; err = ""; render(); }
-    if (!address || busy || document.hidden) return;
+    if (!address) { err = "Open a token page to load market data."; render(); return; }
+    if (document.hidden) return;
+    if (busy) {
+      if (force) refreshQueued = true;
+      return;
+    }
     busy = true;
-    chrome.runtime.sendMessage({ type: "market", address }, (res) => {
+    err = "";
+    render();
+    chrome.runtime.sendMessage({ type: "market", address, force }, (res) => {
       busy = false;
-      if (chrome.runtime.lastError) return;
+      if (chrome.runtime.lastError) {
+        err = "Market data temporarily unavailable. Try refresh again.";
+        render();
+        return;
+      }
       if (res?.ok) { if (address === a) { market = res.data; err = ""; recordChart(a, market.mc); } }
       else err = res?.error || "Market data temporarily unavailable";
       render();
+      if (refreshQueued) { refreshQueued = false; refresh(true); }
     });
   }
 
