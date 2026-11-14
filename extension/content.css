@@ -3,6 +3,11 @@
 #mpt-hud .h{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;cursor:move;border-bottom:1px solid #1f2a44;font-weight:700}
 #mpt-hud .h b{color:#3cf0a0}
 #mpt-hud .h button{background:none;border:0;color:#8aa0c0;cursor:pointer;font-size:14px}
+#mpt-hud .h .tools{display:flex;align-items:center;gap:5px}
+#mpt-hud .h .tools button{width:22px;height:22px;padding:0;display:grid;place-items:center}
+#mpt-hud .h .tools button:hover{color:#e6f1ff}
+#mpt-hud .h .tools button.spinning{animation:mpt-spin .8s linear infinite}
+@keyframes mpt-spin{to{transform:rotate(360deg)}}
 #mpt-hud .b{padding:10px;display:grid;gap:8px}
 #mpt-hud.min .b{display:none}
 #mpt-hud .row{display:flex;justify-content:space-between;gap:6px}
