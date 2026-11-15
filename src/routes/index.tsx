@@ -4,6 +4,7 @@ import { Rocket, Target, TrendingUp, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CheckForm } from "@/components/checker/CheckForm";
+import { DiagnosticsDialog } from "@/components/checker/DiagnosticsDialog";
 import { MarketDataCard } from "@/components/checker/MarketDataCard";
 import { PotentialChart } from "@/components/checker/PotentialChart";
 import { RecentChecks } from "@/components/checker/RecentChecks";
@@ -74,6 +75,25 @@ function CheckerPage() {
           <Button size="lg" className="h-11 px-5 text-sm" onClick={scrollToChecker}>
             <Rocket className="size-4" /> Check My Profit
           </Button>
+          <DiagnosticsDialog
+            ca={c.ca}
+            amount={c.amount}
+            amountUnit={c.amountUnit}
+            buyMcInput={c.buyMcInput}
+            buyMcUnit={c.buyMcUnit}
+            token={c.token}
+            loading={c.loading}
+            refreshing={c.refreshing}
+            error={c.error}
+            lastUpdated={c.lastUpdated}
+            refreshInterval={c.refreshInterval}
+            solPrice={c.solPrice}
+            usdInr={c.usdInr}
+            solInvested={c.solInvested}
+            buyMarketCap={c.buyMarketCap}
+            currentMarketCap={c.currentMarketCap}
+            calculationReady={Boolean(c.result)}
+          />
           <span className="num rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-[11px] text-muted-foreground">
             {c.solPrice && c.usdInr
               ? `1 SOL = ${formatInr(c.solPrice * c.usdInr)} • $${c.solPrice.toFixed(2)}`
