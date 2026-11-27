@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Rocket, Target, TrendingUp, Zap } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { CheckForm } from "@/components/checker/CheckForm";
 import { DiagnosticsDialog } from "@/components/checker/DiagnosticsDialog";
 import { MarketDataCard } from "@/components/checker/MarketDataCard";
@@ -35,12 +33,6 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const BENEFITS = [
-  { icon: Zap, title: "Live Data", body: "Current token market data, fetched automatically." },
-  { icon: TrendingUp, title: "INR Profit", body: "Position value and P/L in rupees, USD alongside." },
-  { icon: Target, title: "Target Calculator", body: "See value at higher market caps instantly." },
-];
-
 function Index() {
   return <CheckerPage />;
 }
@@ -55,26 +47,25 @@ function CheckerPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  const scrollToChecker = () => {
-    document.getElementById("checker")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-      <header className="text-center">
-        <span className="num inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1 text-[11px] text-muted-foreground">
-          Solana • Live market data • INR profit • No login
-        </span>
-        <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl">
-          Know Your Memecoin <span className="text-gradient">Profit Instantly.</span>
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-          Paste a Solana CA. Enter your investment. See your estimated profit in seconds.
-        </p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-          <Button size="lg" className="h-11 px-5 text-sm" onClick={scrollToChecker}>
-            <Rocket className="size-4" /> Check My Profit
-          </Button>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="size-10 rounded-xl bg-gradient-brand" aria-hidden="true" />
+          <div>
+            <h1 className="font-display text-lg font-extrabold leading-tight tracking-tight">
+              Profit Pal
+            </h1>
+            <p className="text-xs text-muted-foreground">Solana memecoin profit checker</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="num inline-flex items-center gap-2 rounded-full border border-border bg-white/5 px-3.5 py-2 text-xs text-muted-foreground">
+            <span className="size-2 rounded-full bg-profit shadow-[0_0_10px_var(--color-profit)]" />
+            {c.solPrice && c.usdInr
+              ? `Live · 1 SOL = ${formatInr(c.solPrice * c.usdInr)} · $${c.solPrice.toFixed(2)}`
+              : "Loading live SOL price…"}
+          </span>
           <DiagnosticsDialog
             ca={c.ca}
             amount={c.amount}
@@ -94,25 +85,10 @@ function CheckerPage() {
             currentMarketCap={c.currentMarketCap}
             calculationReady={Boolean(c.result)}
           />
-          <span className="num rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-[11px] text-muted-foreground">
-            {c.solPrice && c.usdInr
-              ? `1 SOL = ${formatInr(c.solPrice * c.usdInr)} • $${c.solPrice.toFixed(2)}`
-              : "Loading live SOL price…"}
-          </span>
-        </div>
-
-        <div className="mt-6 grid gap-2 sm:grid-cols-3">
-          {BENEFITS.map((b) => (
-            <div key={b.title} className="glass rounded-xl p-3 text-left">
-              <b.icon className="size-4 text-brand-2" />
-              <p className="mt-1.5 text-xs font-semibold">{b.title}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{b.body}</p>
-            </div>
-          ))}
         </div>
       </header>
 
-      <div className="mt-8 grid items-start gap-5 lg:grid-cols-[minmax(0,1.04fr)_minmax(420px,0.96fr)]">
+      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.04fr)_minmax(420px,0.96fr)]">
         {/* Left: trade inputs and supporting tools */}
         <div className="space-y-5">
           <CheckForm

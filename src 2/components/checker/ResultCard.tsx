@@ -101,7 +101,7 @@ export function ResultCard({
   );
 
   return (
-    <section className="glass relative overflow-hidden rounded-2xl p-4 sm:p-5" data-tick={tick}>
+    <section className="glass relative overflow-hidden rounded-3xl border-profit/25 p-5 sm:p-6" data-tick={tick}>
       <div
         className={cn(
           "pointer-events-none absolute -top-24 left-1/2 h-48 w-3/4 -translate-x-1/2 rounded-full blur-3xl",
@@ -124,14 +124,14 @@ export function ResultCard({
           </span>
         </div>
 
-        <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.72fr)] sm:items-start">
+        <div className="mt-3 grid gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Active Net Profit — after fees ({displayCurrency})
             </p>
             <p
               className={cn(
-                "num mt-0.5 text-3xl font-bold leading-tight sm:text-4xl",
+                "num font-display mt-1 whitespace-nowrap text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl",
                 up ? "text-profit" : "text-loss",
               )}
             >
@@ -188,6 +188,47 @@ export function ResultCard({
             )}
           </div>
         </div>
+
+        {expectedTargetRow && expectedTargetRow.targetMarketCap > buyMarketCap ? (
+          <div className="mt-4 rounded-2xl border border-border bg-white/[0.04] px-4 py-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-display font-bold">Progress to target</span>
+              <span className="num text-muted-foreground">
+                {Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    ((currentMarketCap - buyMarketCap) /
+                      (expectedTargetRow.targetMarketCap - buyMarketCap)) *
+                      100,
+                  ),
+                ).toFixed(0)}
+                % of the way
+              </span>
+            </div>
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-brand"
+                style={{
+                  width: `${Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      ((currentMarketCap - buyMarketCap) /
+                        (expectedTargetRow.targetMarketCap - buyMarketCap)) *
+                        100,
+                    ),
+                  )}%`,
+                }}
+              />
+            </div>
+            <div className="num mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+              <span>Entry {formatCompactUsd(buyMarketCap)}</span>
+              <span>Now {formatCompactUsd(currentMarketCap)}</span>
+              <span>Target {formatCompactUsd(expectedTargetRow.targetMarketCap)}</span>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <Stat
