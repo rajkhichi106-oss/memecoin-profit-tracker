@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 
 import { CheckForm } from "@/components/checker/CheckForm";
 import { DiagnosticsDialog } from "@/components/checker/DiagnosticsDialog";
+import { LiveChart } from "@/components/checker/LiveChart";
+import { RugCheck } from "@/components/checker/RugCheck";
 import { MarketDataCard } from "@/components/checker/MarketDataCard";
 import { PotentialChart } from "@/components/checker/PotentialChart";
 import { RecentChecks } from "@/components/checker/RecentChecks";
@@ -156,7 +158,7 @@ function CheckerPage() {
               tick={tick}
             />
           ) : null}
-
+          {c.token ? <RugCheck token={c.token} /> : null}
         </div>
 
         {/* Right: hero profit, stats, progress */}
@@ -174,6 +176,17 @@ function CheckerPage() {
               feeSol={c.feeSol}
               solPrice={c.solPrice}
               targets={c.targets}
+              chartSlot={
+                c.token.pairAddress ? (
+                  <LiveChart
+                    pairAddress={c.token.pairAddress}
+                    priceUsd={c.token.priceUsd}
+                    currentMarketCap={c.currentMarketCap}
+                    entryMarketCap={c.buyMarketCap}
+                    targetMarketCap={c.customTargetRow ? c.customTargetRow.targetMarketCap : null}
+                  />
+                ) : null
+              }
                expectedTargetRow={c.customTargetRow}
               refreshInterval={c.refreshInterval}
               setRefreshInterval={c.setRefreshInterval}

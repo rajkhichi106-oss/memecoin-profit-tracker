@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ type Props = {
   onRefresh: () => void;
   lastUpdated: number | null;
   tick: number;
+  chartSlot?: ReactNode;
 };
 
 const CARD = "rounded-3xl border border-border bg-white/[0.04] backdrop-blur-md";
@@ -154,6 +156,7 @@ export function ResultCard({
   onRefresh,
   lastUpdated,
   tick,
+  chartSlot,
 }: Props) {
   const up = result.profitUsd >= 0;
   const tone = up ? "profit" : "loss";
@@ -264,6 +267,8 @@ export function ResultCard({
           />
         )}
       </div>
+
+      {chartSlot}
 
       {/* Progress to target */}
       {progress !== null && target ? (
