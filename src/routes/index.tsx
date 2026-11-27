@@ -66,6 +66,27 @@ function CheckerPage() {
               ? `Live · 1 SOL = ${formatInr(c.solPrice * c.usdInr)} · $${c.solPrice.toFixed(2)}`
               : "Loading live SOL price…"}
           </span>
+          <div
+            role="group"
+            aria-label="Display currency"
+            className="flex rounded-full border border-border bg-white/5 p-1 text-xs font-semibold"
+          >
+            {["INR", "USD", "SOL"].map((code) => (
+              <button
+                key={code}
+                type="button"
+                aria-pressed={c.displayCurrency === code}
+                onClick={() => c.setDisplayCurrency(code)}
+                className={
+                  c.displayCurrency === code
+                    ? "rounded-full bg-gradient-brand px-4 py-1.5 text-primary-foreground"
+                    : "rounded-full px-4 py-1.5 text-muted-foreground hover:text-foreground"
+                }
+              >
+                {code}
+              </button>
+            ))}
+          </div>
           <DiagnosticsDialog
             ca={c.ca}
             amount={c.amount}
@@ -88,8 +109,8 @@ function CheckerPage() {
         </div>
       </header>
 
-      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.04fr)_minmax(420px,0.96fr)]">
-        {/* Left: trade inputs and supporting tools */}
+      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)]">
+        {/* Left: position form + token */}
         <div className="space-y-5">
           <CheckForm
             ca={c.ca}
@@ -122,14 +143,24 @@ function CheckerPage() {
             onCheck={c.check}
             onPaste={() => void c.pasteFromClipboard()}
           />
-          <WalletTracker usdInr={c.usdInr} onTrack={c.trackTrade} tick={tick} />
-          {c.targets.length > 0 && c.buyMarketCap ? (
-            <PotentialChart buyMarketCap={c.buyMarketCap} targets={c.targets} />
+          {c.token ? (
+            <MarketDataCard
+              token={c.token}
+              solPrice={c.solPrice}
+              lastUpdated={c.lastUpdated}
+              refreshing={c.refreshing}
+              refreshInterval={c.refreshInterval}
+              setRefreshInterval={c.setRefreshInterval}
+              onRefresh={c.refreshNow}
+              onCopy={(v, label) => void c.copy(v, label)}
+              tick={tick}
+            />
           ) : null}
+
         </div>
 
-        {/* Right: live position + live DEX Screener market data (sticky on desktop) */}
-        <div className="space-y-5 lg:sticky lg:top-5">
+        {/* Right: hero profit, stats, progress */}
+        <div className="space-y-5">
           {c.result && c.currentMarketCap && c.buyMarketCap && c.token ? (
             <ResultCard
               result={c.result}
@@ -141,6 +172,8 @@ function CheckerPage() {
               displayCurrency={c.displayCurrency}
               setDisplayCurrency={c.setDisplayCurrency}
               feeSol={c.feeSol}
+              solPrice={c.solPrice}
+              targets={c.targets}
                expectedTargetRow={c.customTargetRow}
               refreshInterval={c.refreshInterval}
               setRefreshInterval={c.setRefreshInterval}
@@ -159,20 +192,6 @@ function CheckerPage() {
             </section>
           )}
 
-          {c.token ? (
-            <MarketDataCard
-              token={c.token}
-              solPrice={c.solPrice}
-              lastUpdated={c.lastUpdated}
-              refreshing={c.refreshing}
-              refreshInterval={c.refreshInterval}
-              setRefreshInterval={c.setRefreshInterval}
-              onRefresh={c.refreshNow}
-              onCopy={(v, label) => void c.copy(v, label)}
-              tick={tick}
-            />
-          ) : null}
-
           {c.targets.length > 0 ? (
             <TargetSection
               targets={c.targets}
@@ -182,12 +201,13 @@ function CheckerPage() {
             />
           ) : null}
         </div>
-
       </div>
 
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
-        {c.token ? <TokenAnalysis token={c.token} /> : <div />}
-        <RecentChecks history={c.history} onClear={c.clearAllHistory} tick={tick} />
+        <WalletTracker usdInr={c.usdInr} onTrack={c.trackTrade} tick={tick} />
+        {c.targets.length > 0 && c.buyMarketCap ? (
+          <PotentialChart buyMarketCap={c.buyMarketCap} targets={c.targets} />
+        ) : null}
       </div>
 
       <section className="mt-4 rounded-xl border border-chart-4/35 bg-chart-4/10 p-4 text-[11px] leading-relaxed text-muted-foreground">

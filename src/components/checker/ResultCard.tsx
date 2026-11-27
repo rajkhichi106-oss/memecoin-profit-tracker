@@ -1,4 +1,4 @@
-import { RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,9 @@ type Props = {
   displayCurrency: string;
   setDisplayCurrency: (v: string) => void;
   feeSol: number;
+  solPrice: number | null;
   expectedTargetRow: TargetRow | null;
+  targets: TargetRow[];
   refreshInterval: RefreshOption;
   setRefreshInterval: (v: RefreshOption) => void;
   refreshing: boolean;
@@ -42,31 +44,94 @@ type Props = {
   tick: number;
 };
 
-function Stat({
+const CARD = "rounded-3xl border border-border bg-white/[0.04] backdrop-blur-md";
+
+function StatCard({
   label,
   value,
   sub,
   tone,
+  accent,
 }: {
   label: string;
   value: string;
   sub?: string;
-  tone?: "profit" | "loss";
+  tone?: "profit" | "loss" | undefined;
+  accent?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-secondary/35 px-3 py-2.5">
-      <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+    <div
+      className={cn(
+        "min-w-0 rounded-3xl border p-5",
+        accent ? "border-chart-1/40 bg-chart-1/10" : "border-border bg-white/[0.04]",
+      )}
+    >
+      <p className={cn("text-xs font-medium", accent ? "text-chart-1" : "text-muted-foreground")}>
+        {label}
+      </p>
       <p
         className={cn(
-          "num mt-0.5 text-sm font-semibold",
+          "num font-display mt-1.5 truncate text-2xl font-extrabold tracking-tight",
           tone === "profit" && "text-profit",
           tone === "loss" && "text-loss",
         )}
       >
         {value}
       </p>
-      {sub ? <p className="num text-[11px] text-muted-foreground">{sub}</p> : null}
+      {sub ? <p className="num mt-0.5 truncate text-xs text-muted-foreground">{sub}</p> : null}
     </div>
+  );
+}
+
+/** Honest sparkline: straight segments entry → now (→ target), scaled to real market caps. */
+function Sparkline({
+  entry,
+  now,
+  target,
+  up,
+}: {
+  entry: number;
+  now: number;
+  target: number | null;
+  up: boolean;
+}) {
+  const pts = target && target > 0 ? [entry, now, target] : [entry, now];
+  const lo = Math.min(...pts);
+  const hi = Math.max(...pts);
+  const span = hi - lo || 1;
+  const W = 600;
+  const H = 90;
+  const y = (v: number) => H - 8 - ((v - lo) / span) * (H - 20);
+  const xs = pts.length === 3 ? [0, W * 0.55, W] : [0, W];
+  const line = pts.map((v, i) => `${xs[i]},${y(v)}`).join(" ");
+  const color = up ? "var(--color-profit)" : "var(--color-loss)";
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width="100%"
+      height="90"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Market cap from entry to now and target"
+      className="mt-4 block"
+    >
+      <defs>
+        <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={color} stopOpacity=".35" />
+          <stop offset="1" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon fill="url(#spark)" points={`0,${H} ${line} ${W},${H}`} />
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        points={line}
+      />
+    </svg>
   );
 }
 
@@ -80,7 +145,9 @@ export function ResultCard({
   displayCurrency,
   setDisplayCurrency,
   feeSol,
+  solPrice,
   expectedTargetRow,
+  targets,
   refreshInterval,
   setRefreshInterval,
   refreshing,
@@ -90,188 +157,173 @@ export function ResultCard({
 }: Props) {
   const up = result.profitUsd >= 0;
   const tone = up ? "profit" : "loss";
-  const inr = (usd: number) => (usdInr ? usd * usdInr : null);
-  const profitInr = inr(result.profitUsd);
-  const expectedProfitInr = expectedTargetRow ? inr(expectedTargetRow.profitUsd) : null;
-  // Always show rupees (live USD→INR) in the Invested / Current Value / Net Profit boxes.
-  const rupees = (usd: number, sign = false) =>
-    usdInr ? formatInr(usd * usdInr, { sign }) : formatCurrency(usd, displayCurrency, fxRates, { sign });
-  const currencyOptions = [...new Set([...CURRENCY_CODES, ...Object.keys(fxRates)])].filter(
-    (code) => code === "USD" || !!fxRates[code],
-  );
+  const currencyOptions = [
+    ...new Set(["SOL", ...CURRENCY_CODES, ...Object.keys(fxRates)]),
+  ].filter((code) => code === "SOL" || code === "USD" || !!fxRates[code]);
+
+  const toSol = (usd: number) => (solPrice ? usd / solPrice : 0);
+  /** Main figure in the chosen currency (INR / USD / SOL / any FX code). */
+  const money = (usd: number, sign = false) => {
+    if (displayCurrency === "SOL") return formatSol(toSol(usd), { sign });
+    return formatCurrency(usd, displayCurrency, fxRates, { sign });
+  };
+  /** Sub line: the other two common units, never repeating the main one. */
+  const others = (usd: number, sign = false) => {
+    const parts: string[] = [];
+    if (displayCurrency !== "INR" && usdInr) parts.push(formatInr(usd * usdInr, { sign }));
+    if (displayCurrency !== "USD") parts.push(formatUsd(usd, { sign }));
+    if (displayCurrency !== "SOL") parts.push(formatSol(toSol(usd), { sign }));
+    return parts.join(" · ");
+  };
+
+  const target = expectedTargetRow;
+  const progress =
+    target && target.targetMarketCap > buyMarketCap
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            ((currentMarketCap - buyMarketCap) / (target.targetMarketCap - buyMarketCap)) * 100,
+          ),
+        )
+      : null;
+  const nextTargets = targets.filter((t) => t.targetMarketCap > currentMarketCap).slice(0, 4);
 
   return (
-    <section className="glass relative overflow-hidden rounded-3xl border-profit/25 p-5 sm:p-6" data-tick={tick}>
-      <div
+    <div className="space-y-4" data-tick={tick}>
+      {/* Hero */}
+      <section
         className={cn(
-          "pointer-events-none absolute -top-24 left-1/2 h-48 w-3/4 -translate-x-1/2 rounded-full blur-3xl",
-          up ? "bg-profit/20" : "bg-loss/20",
+          "relative overflow-hidden rounded-[28px] border p-6 sm:p-7",
+          up
+            ? "border-profit/30 bg-gradient-to-br from-profit/15 via-white/[0.03] to-transparent"
+            : "border-loss/30 bg-gradient-to-br from-loss/15 via-white/[0.03] to-transparent",
         )}
-      />
-      <div className="relative">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <h2 className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Live Position
-          </h2>
-          <span
-            className={cn(
-              "num inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
-              up ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss",
-            )}
-          >
-            {up ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
-            {formatPercent(result.roiPercent)}
-          </span>
-        </div>
-
-        <div className="mt-3 grid gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Active Net Profit — after fees ({displayCurrency})
-            </p>
-            <p
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] font-medium text-muted-foreground">Net profit · after fees</p>
+          <div className="flex gap-2">
+            <span
               className={cn(
-                "num font-display mt-1 whitespace-nowrap text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl",
+                "num rounded-full bg-black/40 px-3 py-1.5 text-[13px] font-bold",
                 up ? "text-profit" : "text-loss",
               )}
             >
-              {formatCurrency(result.profitUsd, displayCurrency, fxRates, { sign: true })}
-            </p>
-            <p className="num mt-1 text-sm text-muted-foreground">
-              {formatUsd(result.profitUsd, { sign: true })} USD •{" "}
-              {formatSol(result.profitSol, { sign: true })}
-              {profitInr !== null && displayCurrency !== "INR"
-                ? ` • ${formatInr(profitInr, { sign: true })}`
-                : ""}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-brand/35 bg-brand/5 px-3 py-2.5">
-            <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-              Expected Market Cap Profit
-            </p>
-            {expectedTargetRow ? (
-              <>
-                <p className="num mt-1 text-[11px] text-muted-foreground">
-                  At {formatCompactUsd(expectedTargetRow.targetMarketCap)}
-                </p>
-                <p
-                  className={cn(
-                    "num mt-0.5 text-xl font-bold leading-tight",
-                    expectedTargetRow.profitUsd >= 0 ? "text-profit" : "text-loss",
-                  )}
-                >
-                  {formatCurrency(expectedTargetRow.profitUsd, displayCurrency, fxRates, {
-                    sign: true,
-                  })}
-                </p>
-                <p className="num mt-1 text-[11px] text-muted-foreground">
-                  {formatUsd(expectedTargetRow.profitUsd, { sign: true })} USD •{" "}
-                  {formatSol(expectedTargetRow.profitSol, { sign: true })}
-                  {expectedProfitInr !== null && displayCurrency !== "INR"
-                    ? ` • ${formatInr(expectedProfitInr, { sign: true })}`
-                    : ""}
-                </p>
-                <p
-                  className={cn(
-                    "num mt-1 text-[11px] font-medium",
-                    expectedTargetRow.profitUsd >= 0 ? "text-profit" : "text-loss",
-                  )}
-                >
-                  {formatPercent(expectedTargetRow.roiPercent)} ROI
-                </p>
-              </>
-            ) : (
-              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                Enter a target market cap to see the estimated net profit here.
-              </p>
-            )}
+              {formatPercent(result.roiPercent)} ROI
+            </span>
+            <span className="num rounded-full bg-black/40 px-3 py-1.5 text-[13px] font-bold">
+              {result.multiplier.toFixed(2)}×
+            </span>
           </div>
         </div>
+        <p
+          className={cn(
+            "num font-display mt-3 whitespace-nowrap text-5xl font-extrabold leading-[1.05] tracking-tighter sm:text-7xl",
+            "bg-clip-text text-transparent",
+            up
+              ? "bg-gradient-to-br from-[oklch(0.9_0.17_165)] to-[oklch(0.8_0.13_205)]"
+              : "bg-gradient-to-br from-[oklch(0.75_0.2_22)] to-[oklch(0.65_0.2_340)]",
+          )}
+        >
+          {money(result.profitUsd, true)}
+        </p>
+        <p className="num mt-1 text-sm text-muted-foreground">{others(result.profitUsd, true)}</p>
+        <Sparkline
+          entry={buyMarketCap}
+          now={currentMarketCap}
+          target={target ? target.targetMarketCap : null}
+          up={up}
+        />
+      </section>
 
-        {expectedTargetRow && expectedTargetRow.targetMarketCap > buyMarketCap ? (
-          <div className="mt-4 rounded-2xl border border-border bg-white/[0.04] px-4 py-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-display font-bold">Progress to target</span>
-              <span className="num text-muted-foreground">
-                {Math.max(
-                  0,
-                  Math.min(
-                    100,
-                    ((currentMarketCap - buyMarketCap) /
-                      (expectedTargetRow.targetMarketCap - buyMarketCap)) *
-                      100,
-                  ),
-                ).toFixed(0)}
-                % of the way
-              </span>
-            </div>
-            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-brand"
-                style={{
-                  width: `${Math.max(
-                    0,
-                    Math.min(
-                      100,
-                      ((currentMarketCap - buyMarketCap) /
-                        (expectedTargetRow.targetMarketCap - buyMarketCap)) *
-                        100,
-                    ),
-                  )}%`,
-                }}
-              />
-            </div>
-            <div className="num mt-1.5 flex justify-between text-[11px] text-muted-foreground">
-              <span>Entry {formatCompactUsd(buyMarketCap)}</span>
-              <span>Now {formatCompactUsd(currentMarketCap)}</span>
-              <span>Target {formatCompactUsd(expectedTargetRow.targetMarketCap)}</span>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <Stat
-            label="Invested"
-            value={rupees(result.initialUsd)}
-            sub={`${formatUsd(result.initialUsd)} • ${formatSol(result.initialSol)}`}
+      {/* Stat cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Invested"
+          value={money(result.initialUsd)}
+          sub={others(result.initialUsd)}
+        />
+        <StatCard
+          label="Current value"
+          value={money(result.currentUsd)}
+          sub={others(result.currentUsd)}
+        />
+        {target ? (
+          <StatCard
+            accent
+            label={`If it hits ${formatCompactUsd(target.targetMarketCap)}`}
+            value={money(target.profitUsd, true)}
+            sub={others(target.profitUsd, true)}
+            tone={target.profitUsd >= 0 ? undefined : "loss"}
           />
-          <Stat
-            label="Current Value"
-            value={rupees(result.currentUsd)}
-            sub={`${formatUsd(result.currentUsd)} • ${formatSol(result.currentSol)}`}
-          />
-          <Stat
-            label="Net Profit"
-            value={rupees(result.profitUsd, true)}
-            sub={`${formatUsd(result.profitUsd, { sign: true })} • ${formatSol(result.profitSol, { sign: true })}`}
-            tone={tone}
-          />
-        </div>
-
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <Stat
-            label="Total Fees"
+        ) : (
+          <StatCard
+            label="Total fees"
             value={formatSol(result.totalFeesSol)}
             sub="buy + sell, fixed"
           />
-          <Stat label="ROI" value={formatPercent(result.roiPercent)} tone={tone} />
-          <Stat label="Multiplier" value={`${result.multiplier.toFixed(2)}×`} />
-          <Stat
-            label={marketCapMetric === "fdv" ? "Current FDV" : "Current MC"}
-            value={formatCompactUsd(currentMarketCap)}
-          />
-          <Stat label="Buy MC" value={formatCompactUsd(buyMarketCap)} />
-        </div>
+        )}
+      </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+      {/* Progress to target */}
+      {progress !== null && target ? (
+        <section className={cn(CARD, "px-6 py-5")}>
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-display font-bold">Progress to target</span>
+            <span className="num text-xs text-muted-foreground">
+              {progress.toFixed(0)}% of the way to {formatCompactUsd(target.targetMarketCap)}
+            </span>
+          </div>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-chart-1 to-profit"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="num mt-2 flex justify-between text-xs text-muted-foreground">
+            <span>Entry {formatCompactUsd(buyMarketCap)}</span>
+            <span>
+              Now {formatCompactUsd(currentMarketCap)}
+              {marketCapMetric === "fdv" ? " (FDV)" : ""}
+            </span>
+            <span>Target {formatCompactUsd(target.targetMarketCap)}</span>
+          </div>
+        </section>
+      ) : null}
+
+      {/* Multiplier cards */}
+      {nextTargets.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {nextTargets.map((t) => (
+            <div key={t.targetMarketCap} className={cn(CARD, "min-w-0 p-4")}>
+              <p className="num truncate text-xs text-muted-foreground">
+                {formatCompactUsd(t.targetMarketCap)} · {(t.targetMarketCap / buyMarketCap).toFixed(0)}×
+              </p>
+              <p
+                className={cn(
+                  "num font-display mt-1 truncate text-lg font-bold",
+                  t.profitUsd >= 0 ? "text-profit" : "text-loss",
+                )}
+              >
+                {money(t.profitUsd, true)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Controls */}
+      <div className={cn(CARD, "px-5 py-4")}>
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={displayCurrency} onValueChange={setDisplayCurrency}>
             <SelectTrigger className="h-9 w-[118px] text-xs" aria-label="Display currency">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {currencyOptions.map((code) => (
-                <SelectItem key={code} value={code}>{code}</SelectItem>
+                <SelectItem key={code} value={code}>
+                  {code}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -300,16 +352,13 @@ export function ResultCard({
               : "—"}
           </span>
         </div>
-
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
           Estimated from your manually entered SOL amount and entry market cap combined with live
           DEX Screener market data — not a live sell quote and not connected to any wallet or
-          exchange account. Invested{" "}
-           {formatUsd(result.initialUsd)}
-           {usdInr ? ` (${formatInr(result.initialUsd * usdInr)})` : ""}.
-           {feeSol > 0 ? ` Includes ${formatSol(feeSol)} in fees.` : ""}
+          exchange account.
+          {feeSol > 0 ? ` Includes ${formatSol(feeSol)} in fees.` : ""}
         </p>
       </div>
-    </section>
+    </div>
   );
 }

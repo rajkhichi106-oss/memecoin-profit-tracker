@@ -90,16 +90,16 @@ export function CheckForm({
   const targetMc = parseCompactNumber(`${targetMcInput}${targetMcUnit}`);
 
   return (
-    <section id="checker" className="glass rounded-2xl p-4 sm:p-5">
+    <section id="checker" className="glass rounded-3xl p-5 sm:p-6">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-        <h2 className="truncate text-base font-semibold sm:text-lg">Trade Inputs</h2>
+        <h2 className="font-display truncate text-lg font-bold">Your position</h2>
         <span className="num shrink-0 rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[11px] text-muted-foreground">
           SOL {solPrice ? `$${solPrice.toFixed(2)}` : "…"}
         </span>
       </div>
 
       <form
-        className="mt-4 space-y-4"
+        className="mt-5 space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           onCheck();
@@ -115,12 +115,12 @@ export function CheckForm({
               placeholder="Paste token CA"
               spellCheck={false}
               autoComplete="off"
-              className="num h-11 flex-1 text-sm"
+              className="num h-12 rounded-2xl flex-1 text-sm"
             />
             <Button
               type="button"
               variant="secondary"
-              className="h-11 px-3"
+              className="h-12 rounded-2xl px-3"
               onClick={onPaste}
               aria-label="Paste Solana contract address"
             >
@@ -146,10 +146,10 @@ export function CheckForm({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder={amountUnit === "SOL" ? "0.54" : "120"}
-              className="num h-11 flex-1"
+              className="num h-12 rounded-2xl flex-1"
             />
             <Select value={amountUnit} onValueChange={(v) => setAmountUnit(v as AmountUnit)}>
-              <SelectTrigger className="h-11 w-[92px]">
+              <SelectTrigger className="h-12 rounded-2xl w-[92px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -176,10 +176,10 @@ export function CheckForm({
                  value={buyMcInput}
                  onChange={(e) => setBuyMcInput(e.target.value)}
                  placeholder="53"
-                 className="num h-11 flex-1"
+                 className="num h-12 rounded-2xl flex-1"
                />
                <Select value={buyMcUnit} onValueChange={(v) => setBuyMcUnit(v as MarketCapUnit)}>
-                 <SelectTrigger className="h-11 w-[78px]">
+                 <SelectTrigger className="h-12 rounded-2xl w-[78px]">
                    <SelectValue />
                  </SelectTrigger>
                  <SelectContent>
@@ -202,10 +202,10 @@ export function CheckForm({
                 value={targetMcInput}
                 onChange={(e) => setTargetMcInput(e.target.value)}
                 placeholder="750"
-                className="num h-11 flex-1"
+                className="num h-12 rounded-2xl flex-1"
               />
               <Select value={targetMcUnit} onValueChange={(v) => setTargetMcUnit(v as MarketCapUnit)}>
-                <SelectTrigger className="h-11 w-[78px]">
+                <SelectTrigger className="h-12 rounded-2xl w-[78px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,6 +237,11 @@ export function CheckForm({
           ))}
         </div>
 
+        <details className="group rounded-2xl border border-border bg-white/[0.03] px-4 py-3">
+          <summary className="cursor-pointer list-none text-sm font-medium text-muted-foreground group-open:text-foreground">
+            Advanced: network &amp; tip fees (optional)
+          </summary>
+          <div className="mt-3">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="buy-priority-fee">Buy Priority Fee (SOL)</Label>
@@ -246,9 +251,9 @@ export function CheckForm({
               value={buyPriorityFee}
               onChange={(e) => setBuyPriorityFee(e.target.value)}
               placeholder="0.00"
-              className="num h-11"
+              className="num h-12 rounded-2xl"
             />
-            <p className="num text-[11px] text-muted-foreground">Optional network fee</p>
+            
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="buy-bribe-fee">Buy Bribe Fee (SOL)</Label>
@@ -258,9 +263,9 @@ export function CheckForm({
               value={buyBribeFee}
               onChange={(e) => setBuyBribeFee(e.target.value)}
               placeholder="0.00"
-              className="num h-11"
+              className="num h-12 rounded-2xl"
             />
-            <p className="num text-[11px] text-muted-foreground">Optional validator / tip fee</p>
+            
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sell-priority-fee">Sell Priority Fee (SOL)</Label>
@@ -270,9 +275,9 @@ export function CheckForm({
               value={sellPriorityFee}
               onChange={(e) => setSellPriorityFee(e.target.value)}
               placeholder="0.00"
-              className="num h-11"
+              className="num h-12 rounded-2xl"
             />
-            <p className="num text-[11px] text-muted-foreground">Optional network fee</p>
+            
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sell-bribe-fee">Sell Bribe Fee (SOL)</Label>
@@ -282,13 +287,16 @@ export function CheckForm({
               value={sellBribeFee}
               onChange={(e) => setSellBribeFee(e.target.value)}
               placeholder="0.00"
-              className="num h-11"
+              className="num h-12 rounded-2xl"
             />
-            <p className="num text-[11px] text-muted-foreground">Optional validator / tip fee</p>
+            
           </div>
         </div>
 
-        <Button type="submit" size="lg" disabled={loading} className="h-12 w-full text-sm">
+          </div>
+        </details>
+
+        <Button type="submit" size="lg" disabled={loading} className="h-12 w-full rounded-2xl bg-gradient-brand text-sm font-bold shadow-[0_10px_30px_-8px_var(--color-profit)]">
           {loading ? (
             <>
               <Loader2 className="size-5 animate-spin" /> Fetching live market data...
