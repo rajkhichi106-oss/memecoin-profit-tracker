@@ -93,6 +93,9 @@ export function ResultCard({
   const inr = (usd: number) => (usdInr ? usd * usdInr : null);
   const profitInr = inr(result.profitUsd);
   const expectedProfitInr = expectedTargetRow ? inr(expectedTargetRow.profitUsd) : null;
+  // Always show rupees (live USD→INR) in the Invested / Current Value / Net Profit boxes.
+  const rupees = (usd: number, sign = false) =>
+    usdInr ? formatInr(usd * usdInr, { sign }) : formatCurrency(usd, displayCurrency, fxRates, { sign });
   const currencyOptions = [...new Set([...CURRENCY_CODES, ...Object.keys(fxRates)])].filter(
     (code) => code === "USD" || !!fxRates[code],
   );
@@ -186,7 +189,26 @@ export function ResultCard({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Stat
+            label="Invested"
+            value={rupees(result.initialUsd)}
+            sub={`${formatUsd(result.initialUsd)} • ${formatSol(result.initialSol)}`}
+          />
+          <Stat
+            label="Current Value"
+            value={rupees(result.currentUsd)}
+            sub={`${formatUsd(result.currentUsd)} • ${formatSol(result.currentSol)}`}
+          />
+          <Stat
+            label="Net Profit"
+            value={rupees(result.profitUsd, true)}
+            sub={`${formatUsd(result.profitUsd, { sign: true })} • ${formatSol(result.profitSol, { sign: true })}`}
+            tone={tone}
+          />
+        </div>
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
           <Stat
             label="Total Fees"
             value={formatSol(result.totalFeesSol)}

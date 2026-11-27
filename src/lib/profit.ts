@@ -102,6 +102,7 @@ export type ProfitInput = {
 };
 
 export type ProfitResult = {
+  initialSol: number;
   initialUsd: number;
   multiplier: number;
   currentUsd: number;
@@ -135,6 +136,7 @@ export function calculateProfit({
   const profitSol = currentSol - solInvested - totalFeesSol;
   const profitUsd = profitSol * solPriceUsd;
   return {
+    initialSol: costBasisSol,
     initialUsd,
     multiplier,
     currentUsd,
