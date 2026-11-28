@@ -31,6 +31,11 @@ const POLL_MS = 3000;
 /** 1s mode samples DexScreener once a second (limit 300 req/min; this uses 60). */
 const TICK_MS = 1000;
 const MAX_SECOND_BARS = 1800;
+/** Free real-time trade feed for pump.fun tokens (PumpPortal). One socket, subscribed to this mint. */
+const TRADE_WS_URL = "wss://pumpportal.fun/api/data";
+/** pump.fun tokens have a fixed 1,000,000,000 supply. */
+const PUMP_SUPPLY = 1_000_000_000;
+const PERIOD_SEC: Record<string, number> = { "1s": 1, "1m": 60, "5m": 300, "15m": 900, "1h": 3600 };
 const UP = "#3ddc97";
 const DOWN = "#ff5d6c";
 
@@ -40,6 +45,10 @@ type Props = {
   currentMarketCap: number;
   entryMarketCap: number;
   targetMarketCap: number | null;
+  /** Token mint, used for the real-time trade stream. */
+  mint?: string;
+  /** Live SOL/USD price, used to convert stream market cap (in SOL) to USD. */
+  solPriceUsd?: number | null;
 };
 
 function geckoUrl(pool: string, tf: TF, limit: number) {
@@ -67,11 +76,16 @@ export function LiveChart({
   currentMarketCap,
   entryMarketCap,
   targetMarketCap,
+  mint,
+  solPriceUsd,
 }: Props) {
   const [tf, setTf] = useState<TF>("1s");
   const [mode, setMode] = useState<Mode>("mc");
   const [status, setStatus] = useState<"loading" | "live" | "error" | "limited">("loading");
   const [updated, setUpdated] = useState<number | null>(null);
+  const [stream, setStream] = useState<"off" | "connecting" | "trades">("off");
+  const lastWsAt = useRef(0);
+  const solRef = useRef<number | null>(null);
 
   const boxRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -81,12 +95,15 @@ export function LiveChart({
   const ratioRef = useRef(1);
   const modeRef = useRef<Mode>("mc");
   const secondsRef = useRef(false);
+  const tfRef = useRef<TF>("1s");
 
   // Price -> market cap multiplier (supply implied by the app's current price / MC).
   const ratio = priceUsd > 0 ? currentMarketCap / priceUsd : 1;
   ratioRef.current = ratio;
   modeRef.current = mode;
   secondsRef.current = tf === "1s";
+  tfRef.current = tf;
+  solRef.current = solPriceUsd ?? null;
 
   const toPoint = (b: Bar): CandlestickData<UTCTimestamp> => {
     const k = modeRef.current === "mc" ? ratioRef.current : 1;
@@ -98,6 +115,26 @@ export function LiveChart({
       close: b.close * k,
     };
   };
+
+  /** Fold a price into the candle for `bucket` (seconds). Used by both polling and the trade stream. */
+  const pushPrice = (price: number, bucket: number) => {
+    const bars = barsRef.current;
+    const last = bars[bars.length - 1];
+    let bar: Bar;
+    if (last && last.time === bucket) {
+      bar = { ...last, high: Math.max(last.high, price), low: Math.min(last.low, price), close: price };
+      bars[bars.length - 1] = bar;
+    } else if (!last || bucket > last.time) {
+      const open = last ? last.close : price;
+      bar = { time: bucket, open, high: Math.max(open, price), low: Math.min(open, price), close: price };
+      bars.push(bar);
+      if (bars.length > MAX_SECOND_BARS) bars.shift();
+    } else {
+      return;
+    }
+    seriesRef.current?.update(toPoint(bar));
+  };
+  const streamActive = () => Date.now() - lastWsAt.current < 15000;
 
   // Create the chart once.
   useEffect(() => {
@@ -210,20 +247,7 @@ export function LiveChart({
             if (stop) return;
             if (!(price > 0)) throw new Error("NOPRICE");
             failures = 0;
-            const t = Math.floor(Date.now() / 1000);
-            const bars = barsRef.current;
-            const last = bars[bars.length - 1];
-            let bar: Bar;
-            if (last && last.time === t) {
-              bar = { ...last, high: Math.max(last.high, price), low: Math.min(last.low, price), close: price };
-              bars[bars.length - 1] = bar;
-            } else {
-              const open = last ? last.close : price;
-              bar = { time: t, open, high: Math.max(open, price), low: Math.min(open, price), close: price };
-              bars.push(bar);
-              if (bars.length > MAX_SECOND_BARS) bars.shift();
-            }
-            seriesRef.current?.update(toPoint(bar));
+            if (!streamActive()) pushPrice(price, Math.floor(Date.now() / 1000));
             setUpdated(Date.now());
             setStatus("live");
           } catch (e) {
@@ -248,6 +272,7 @@ export function LiveChart({
       for (const b of incoming) {
         const last = bars[bars.length - 1];
         if (last && b.time === last.time) {
+          if (streamActive()) continue; // stream is fresher than the polled candle
           bars[bars.length - 1] = b;
           seriesRef.current?.update(toPoint(b));
         } else if (!last || b.time > last.time) {
@@ -301,6 +326,67 @@ export function LiveChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairAddress, tf]);
 
+  // Real-time trades (pump.fun tokens): every trade moves the live candle instantly.
+  useEffect(() => {
+    if (!mint || typeof WebSocket === "undefined") return;
+    let stop = false;
+    let ws: WebSocket | null = null;
+    let retry: number | undefined;
+    let attempts = 0;
+    setStream("connecting");
+
+    const connect = () => {
+      if (stop) return;
+      ws = new WebSocket(TRADE_WS_URL);
+      ws.onopen = () => {
+        attempts = 0;
+        ws?.send(JSON.stringify({ method: "subscribeTokenTrade", keys: [mint] }));
+      };
+      ws.onmessage = (ev: MessageEvent) => {
+        let m: {
+          mint?: string;
+          txType?: string;
+          marketCapSol?: number;
+          solAmount?: number;
+          tokenAmount?: number;
+        };
+        try {
+          m = JSON.parse(String(ev.data));
+        } catch {
+          return;
+        }
+        if (m.mint !== mint || !m.txType) return; // ignore subscribe acks / other tokens
+        const sol = solRef.current;
+        if (!sol) return;
+        let price = 0;
+        if (m.marketCapSol && m.marketCapSol > 0) price = (m.marketCapSol * sol) / PUMP_SUPPLY;
+        else if (m.solAmount && m.tokenAmount) price = (m.solAmount / m.tokenAmount) * sol;
+        if (!(price > 0)) return;
+        lastWsAt.current = Date.now();
+        setStream("trades");
+        const period = PERIOD_SEC[tfRef.current] ?? 60;
+        if (period > 1 && barsRef.current.length === 0) return; // wait for history first
+        pushPrice(price, Math.floor(Date.now() / 1000 / period) * period);
+        setUpdated(Date.now());
+      };
+      ws.onclose = () => {
+        if (stop) return;
+        setStream("off");
+        retry = window.setTimeout(connect, Math.min(1000 * 2 ** attempts, 15000));
+        attempts += 1;
+      };
+      ws.onerror = () => ws?.close();
+    };
+    connect();
+    return () => {
+      stop = true;
+      if (retry) window.clearTimeout(retry);
+      ws?.close();
+      setStream("off");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mint]);
+
   const pill = (active: boolean) =>
     cn(
       "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
@@ -325,7 +411,9 @@ export function LiveChart({
               )}
             />
             {status === "live"
-              ? `Live · ${tf === "1s" ? 1 : POLL_MS / 1000}s`
+              ? stream === "trades"
+                ? "Live · trades"
+                : `Live · ${tf === "1s" ? 1 : POLL_MS / 1000}s`
               : status === "limited"
                 ? "Rate limited"
                 : status === "error"
@@ -367,11 +455,13 @@ export function LiveChart({
         ) : null}
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-        {tf === "1s"
-          ? "1s candles are built from the live DexScreener price sampled once a second, starting when you opened this chart (no earlier history exists at this resolution). Seconds with no price change show flat candles; this is not trade-by-trade data."
-          : `Candles from GeckoTerminal, refreshed every ${POLL_MS / 1000}s.`}
-        {updated ? ` Last update ${new Date(updated).toLocaleTimeString()}.` : ""} Market cap = price × current
-        supply. True tick streaming needs a paid websocket feed.
+        {stream === "trades"
+          ? "Real-time: every trade from the pump.fun feed updates the live candle instantly. "
+          : tf === "1s"
+            ? "1s candles are built from the live DexScreener price sampled once a second, starting when you opened this chart (no earlier history exists at this resolution). Not trade-by-trade for non-pump.fun tokens. "
+            : `Candles from GeckoTerminal, refreshed every ${POLL_MS / 1000}s. `}
+        {updated ? `Last update ${new Date(updated).toLocaleTimeString()}. ` : ""}Market cap = price × current
+        supply.
       </p>
     </section>
   );

@@ -180,6 +180,8 @@ function CheckerPage() {
                 c.token.pairAddress ? (
                   <LiveChart
                     pairAddress={c.token.pairAddress}
+                    mint={c.token.address}
+                    solPriceUsd={c.solPrice}
                     priceUsd={c.token.priceUsd}
                     currentMarketCap={c.currentMarketCap}
                     entryMarketCap={c.buyMarketCap}
